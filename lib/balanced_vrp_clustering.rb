@@ -29,6 +29,7 @@ module Ai4r
       include OverloadableFunctions
 
       attr_reader :iterations
+      attr_reader :cut_limit
 
       parameters_info vehicles_infos: 'Attributes of each cluster to generate',
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
@@ -37,7 +38,7 @@ module Ai4r
                         'boolean (true: if compatible and false: if incompatible). '\
                         'By default, this implementation uses a function which always returns true.'
 
-      def build(data_set, number_of_clusters, cut_symbol, cut_ratio, options = {})
+      def build(data_set, cut_symbol, cut_ratio = 1.0, options = {})
         # Build a new clusterer, using data items found in data_set.
         # Items will be clustered in "number_of_clusters" different
         # clusters. Each item is defined by :
@@ -51,9 +52,8 @@ module Ai4r
 
         @data_set = data_set
         @cut_symbol = cut_symbol
-        @unit_symbols = @vehicles_infos.collect{ |c| c[:capacities].collect{ |capacity| capacity[:unit_id] } }.uniq.flatten
-        reduced_number_of_clusters = [number_of_clusters, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
-        @number_of_clusters = reduced_number_of_clusters
+        @unit_symbols = @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq
+        @number_of_clusters = [@vehicles_infos.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
         compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix)
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles_infos, @data_set.data_items, options[:entity])

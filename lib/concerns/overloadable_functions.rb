@@ -46,10 +46,13 @@ module OverloadableFunctions
         time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
         time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
       else
-        single_location_array = [vehicle_info[:depot]]
-        locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
-        time_matrix_from_depot = OptimizerWrapper.router.matrix(OptimizerWrapper.config[:router][:url], :car, [:time], single_location_array, locations).first
-        time_matrix_to_depot = OptimizerWrapper.router.matrix(OptimizerWrapper.config[:router][:url], :car, [:time], locations, single_location_array).first
+        items_locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
+        time_matrix_from_depot = [items_locations.collect{ |item_location|
+          Helper.euclidean_distance(vehicle_info[:depot], item_location)
+        }]
+        time_matrix_to_depot = items_locations.collect{ |item_location|
+          [Helper.euclidean_distance(item_location, vehicle_info[:depot])]
+        }
       end
 
       data_set.data_items.each_with_index{ |point, index|
@@ -70,7 +73,7 @@ module OverloadableFunctions
     strict_limits = vehicles_infos.collect{ |cluster|
       s_l = { duration: cluster[:total_work_time], visits: cumulated_metrics[:visits] }
       cumulated_metrics.each{ |unit, _total_metric|
-        s_l[unit] = ((cluster[:capacities].any?{ |capacity| capacity[:unit_id] == unit }) ? cluster[:capacities].find{ |capacity| capacity[:unit_id] == unit }[:limit] : 0)
+        s_l[unit] = ((cluster[:capacities].has_key? unit) ? cluster[:capacities][unit] : 0)
       }
       s_l
     }
