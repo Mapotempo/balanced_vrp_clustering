@@ -49,20 +49,11 @@ module Ai4r
         #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
 
         ### return clean errors if unconsistent data ###
-        if distance_matrix
-          if vehicles_infos.any?{ |v_i| v_i[:depot].size != 1 } ||
-             data_set.data_items.any?{ |item| !item[4][:matrix_index] }
-            raise ArgumentError, 'Matrix provided : matrix index should be provided for all vehicle_info and all item'
-          end
-        elsif vehicles_infos.any?{ |v_i| v_i[:depot].compact.size != 2 } ||
-              data_set.data_items.any?{ |item| !(item[0] && item[1]) }
-          raise ArgumentError, 'No matrix provided : lattitude and longitude should be provided for all vehicle_info and all item'
+        if data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
+          raise ArgumentError, 'Cut symbol corresponding unit should be provided for all item'
         end
 
-        if vehicles_infos.any?{ |v_i| !v_i[:capacities].has_key?(cut_symbol) } ||
-           data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
-          raise ArgumentError, 'Cut symbol corresponding unit should be provided for all vehicle_info and all item'
-        end
+        raise ArgumentError, 'Should provide max_iterations' if @max_iterations.nil?
 
         ### default values ###
         data_set.data_items.each{ |item|
@@ -79,7 +70,11 @@ module Ai4r
 
         @data_set = data_set
         @cut_symbol = cut_symbol
-        @unit_symbols = @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq
+        @unit_symbols = if @vehicles_infos.all?{ |c| c[:capacities] }
+          @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq
+        else
+          [cut_symbol]
+        end
         @number_of_clusters = [@vehicles_infos.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
         compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix)
@@ -366,7 +361,7 @@ module Ai4r
 
         # TODO: This functionality is implemented only for duration cut_symbol. Make sure it doesn't interfere with other cut_symbols
         vehicle_work_time = compute_vehicle_work_time_with
-        total_vehicle_work_times = vehicle_work_time.sum.to_f
+        total_vehicle_work_times = vehicle_work_time.reduce(&:+).to_f
         @centroids.size.times{ |index|
           @cut_limit[index][:limit] = @total_cut_load * vehicle_work_time[index] / total_vehicle_work_times
         }

@@ -35,6 +35,8 @@ module OverloadableFunctions
   end
 
   def compute_distance_from_and_to_depot(vehicles_infos, data_set, matrix)
+    return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot] }
+
     data_set.data_items.each{ |point|
       point[4][:duration_from_and_to_depot] = []
     }
@@ -64,19 +66,21 @@ module OverloadableFunctions
   def compute_limits(cut_symbol, cut_ratio, vehicles_infos, data_items, entity = :vehicle)
     cumulated_metrics = Hash.new(0)
 
-    data_items.each{ |item|
-      item[3].each{ |key, value|
-        cumulated_metrics[key] += value
-      }
+    (@unit_symbols || [cut_symbol]).each{ |unit|
+      cumulated_metrics[unit.to_sym] = data_items.collect{ |item| item[3][unit] || 0 }.reduce(&:+)
     }
 
-    strict_limits = vehicles_infos.collect{ |cluster|
-      s_l = { duration: cluster[:total_work_time], visits: cumulated_metrics[:visits] }
-      cumulated_metrics.each{ |unit, _total_metric|
-        s_l[unit] = ((cluster[:capacities].has_key? unit) ? cluster[:capacities][unit] : 0)
+    strict_limits = if vehicles_infos.none?{ |v_i| v_i[:capacities] }
+      []
+    else
+      vehicles_infos.collect{ |cluster|
+        s_l = { duration: cluster[:total_work_time], visits: cumulated_metrics[:visits] }
+        cumulated_metrics.each{ |unit, _total_metric|
+          s_l[unit] = ((cluster[:capacities].has_key? unit) ? cluster[:capacities][unit] : 0)
+        }
+        s_l
       }
-      s_l
-    }
+    end
 
     total_work_time = vehicles_infos.map{ |cluster| cluster[:total_work_time] }.reduce(&:+).to_f
     metric_limits = if entity == :vehicle && total_work_time.positive?

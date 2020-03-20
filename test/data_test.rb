@@ -33,30 +33,8 @@ class ClusteringTest < Minitest::Test
     end
   end
 
-  def test_data_without_matrix
-    clusterer, data_items = Instance.two_clusters_4_items
-    clusterer.vehicles_infos.first[:depot] = []
-
-    assert_raises ArgumentError do
-      clusterer.build(data_items, :visits)
-    end
-
-    clusterer.vehicles_infos.first[:depot] = [45.604784, 4.758965] # back to normal vehicles_infos
-    data_items.data_items.first[0] = nil
-    assert_raises ArgumentError do
-      clusterer.build(data_items, :visits)
-    end
-  end
-
   def test_minimal_unit
     clusterer, data_items = Instance.two_clusters_4_items
-    clusterer.vehicles_infos.first[:capacities] = {}
-
-    assert_raises ArgumentError do
-      clusterer.build(data_items, :visits)
-    end
-
-    clusterer.vehicles_infos.first[:capacities] = { visits: 6 } # back to normal vehicles_infos
     data_items.data_items.first[3] = {}
     assert_raises ArgumentError do
       clusterer.build(data_items, :visits)
