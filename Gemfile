@@ -4,23 +4,13 @@ ruby '~> 2.3'
 gem 'require_all'
 
 gem 'rack'
+gem 'rack-contrib'
 gem 'rack-cors'
 gem 'rakeup'
 
-# remove grape ??
-
-gem 'grape', '<0.19.0' # TODO: Grape 1.2.4 reduces performances
-gem 'grape-entity'
-gem 'grape-swagger', '<0.26.0' # TODO: Waiting Grape 1+
-gem 'grape-swagger-entity', '<0.1.6' # TODO: Waiting Grape 1+
-gem 'grape_logging'
-
-gem 'rack-contrib'
-gem 'resque', '<2'
-gem 'resque-status', '>0.4'
+gem 'activesupport'
 
 gem 'ai4r'
-gem 'sim_annealing'
 
 group :development, :test do
   gem 'benchmark-ips' # to in-place benchmark of different implementations
