@@ -48,7 +48,34 @@ module Ai4r
         #    index 3 : unit_quantities -> for each unit, quantity associated to this item
         #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
 
-        # TODO : add data validation and preprocessing phase (detect data_items that can be served by none of vehicles)
+        ### return clean errors if unconsistent data ###
+        if distance_matrix
+          if vehicles_infos.any?{ |v_i| v_i[:depot].size != 1 } ||
+             data_set.data_items.any?{ |item| !item[4][:matrix_index] }
+            raise ArgumentError, 'Matrix provided : matrix index should be provided for all vehicle_info and all item'
+          end
+        elsif vehicles_infos.any?{ |v_i| v_i[:depot].compact.size != 2 } ||
+              data_set.data_items.any?{ |item| !(item[0] && item[1]) }
+          raise ArgumentError, 'No matrix provided : lattitude and longitude should be provided for all vehicle_info and all item'
+        end
+
+        if vehicles_infos.any?{ |v_i| !v_i[:capacities].has_key?(cut_symbol) } ||
+           data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
+          raise ArgumentError, 'Cut symbol corresponding unit should be provided for all vehicle_info and all item'
+        end
+
+        ### default values ###
+        data_set.data_items.each{ |item|
+          item[4][:v_id] ||= []
+          item[4][:skills] ||= []
+          item[4][:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
+        }
+
+        vehicles_infos.each{ |vehicle_info|
+          vehicle_info[:total_work_days] ||= 1
+          vehicle_info[:skills] ||= []
+          vehicle_info[:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
+        }
 
         @data_set = data_set
         @cut_symbol = cut_symbol
