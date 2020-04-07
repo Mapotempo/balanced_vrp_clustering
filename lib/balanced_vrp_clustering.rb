@@ -31,7 +31,8 @@ module Ai4r
       attr_reader :iterations
       attr_reader :cut_limit
 
-      parameters_info vehicles_infos: 'Attributes of each cluster to generate',
+      parameters_info vehicles_infos: 'Attributes of each cluster to generate. If centroid_indices are provided
+                      then vehicles_infos should be ordered according to centroid_indices order',
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
                       compatibility_function: 'Custom implementation of a compatibility_function.'\
                         'It must be a closure receiving a data item and a centroid and return a '\
@@ -236,8 +237,11 @@ module Ai4r
 
       def calc_initial_centroids
         @centroids, @old_centroids_lat_lon = [], nil
-        populate_centroids('random')
-        # TODO : populate_centroids('indices') if needed
+        if @centroid_indices.empty?
+          populate_centroids('random')
+        else
+          populate_centroids('indices')
+        end
       end
 
       def populate_centroids(populate_method, number_of_clusters = @number_of_clusters)
@@ -248,10 +252,12 @@ module Ai4r
         #    index 2 : item_id
         #    index 3 : unit_fullfillment -> for each unit, quantity contained in corresponding cluster
         #    index 4 : characterisits -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
+        raise ArgumentError, 'No vehicles_infos provided' if @remaining_skills.nil?
+
         case populate_method
         when 'random'
           while @centroids.length < number_of_clusters
-            skills = @remaining_skills ? @remaining_skills.first.dup : []
+            skills = @remaining_skills.first.dup
 
             # Find the items which are not already used, and specifically need the skill set of this cluster
             compatible_items = @data_set.data_items.select{ |item|
@@ -288,6 +294,30 @@ module Ai4r
 
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
           end
+        when 'indices' # for initial assignment only (with the :centroid_indices option)
+          raise ArgumentError, 'Same centroid_index provided several times' if @centroid_indices.size != @centroid_indices.uniq.size
+
+          raise ArgumentError, 'Wrong number of initial centroids provided' if @centroid_indices.size != @number_of_clusters
+
+          insert_at_begining = []
+          @centroid_indices.each do |index|
+            raise ArgumentError, 'Invalid centroid index' unless (index.is_a? Integer) && index >= 0 && index < @data_set.data_items.length
+
+            skills = @remaining_skills.first.dup
+            item = @data_set.data_items[index]
+            raise ArgumentError, 'Centroids indices and vehicles_infos do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
+
+            skills[:matrix_index] = item[4][:matrix_index]
+            skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
+            @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
+
+            @remaining_skills&.delete_at(0)
+            insert_at_begining << item
+          end
+
+          insert_at_begining.each{ |i|
+            @data_set.data_items.insert(0, @data_set.data_items.delete(i))
+          }
         end
         @number_of_clusters = @centroids.length
       end

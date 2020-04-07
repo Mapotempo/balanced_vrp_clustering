@@ -62,4 +62,69 @@ class FunctionsTest < Minitest::Test
       assert_equal clusterer.vehicles_infos[cluster_index][:total_work_time], cut_limit[cluster_index][:limit]
     }
   end
+
+  def test_use_provided_centroids
+    clusterer, data_items = Instance.two_clusters_4_items
+
+    clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles_infos)
+    clusterer.compatibility_function = lambda do |data_item, centroid|
+      compatible_characteristics?(data_item[4], centroid[4])
+    end
+
+    clusterer.instance_variable_set(:@data_set, data_items)
+    clusterer.instance_variable_set(:@number_of_clusters, 2)
+
+    clusterer.centroid_indices = [0, 1]
+    clusterer.send(:calc_initial_centroids)
+    centroids = clusterer.instance_variable_get(:@centroids)
+    assert_equal 2, centroids.size
+    assert_equal ['point_1', 'point_2'], (centroids.collect{ |centroid| centroid[2] })
+    assert_equal ['point_2', 'point_1', 'point_3', 'point_4'], (clusterer.data_set.data_items.collect{ |item| item[2] })
+  end
+
+  def test_check_centroids_validity
+    clusterer, data_items = Instance.two_clusters_4_items
+
+    clusterer.compatibility_function = lambda do |data_item, centroid|
+      compatible_characteristics?(data_item[4], centroid[4])
+    end
+
+    clusterer.instance_variable_set(:@data_set, data_items)
+    clusterer.instance_variable_set(:@number_of_clusters, 2)
+
+    clusterer.centroid_indices = [0, 0]
+    assert_raises ArgumentError do
+      clusterer.send(:calc_initial_centroids)
+    end
+
+    clusterer.centroid_indices = [0]
+    assert_raises ArgumentError do
+      clusterer.send(:calc_initial_centroids)
+    end
+
+    clusterer.centroid_indices = [0, 1, 2]
+    assert_raises ArgumentError do
+      clusterer.send(:calc_initial_centroids)
+    end
+
+    clusterer.centroid_indices = ['0', 'a']
+    assert_raises ArgumentError do
+      clusterer.send(:calc_initial_centroids)
+    end
+
+    clusterer.centroid_indices = [10, 1]
+    assert_raises ArgumentError do
+      clusterer.send(:calc_initial_centroids)
+    end
+
+    # check expected_caracteristics and centroids skills are compatible
+    clusterer.vehicles_infos[1][:skills] << 'needs_vehicle_1'
+    clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles_infos)
+    data_items.data_items[0][4][:skills] << 'needs_vehicle_1'
+    clusterer.instance_variable_set(:@data_set, data_items)
+    clusterer.centroid_indices = [0, 1]
+    assert_raises ArgumentError do
+      clusterer.send(:calc_initial_centroids)
+    end
+  end
 end
