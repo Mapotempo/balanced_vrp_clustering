@@ -7,7 +7,9 @@ This gem aims to help you solving your Vehicle Routing Problems by generating on
 Within gem project use
 ```gem build balanced_vrp_clustering.gemspec``` and ```gem install balanced_vrp_clustering``` to generate gem.
 
-# Including gem in your own ruby project
+  # Usage
+
+##### Include gem in your own ruby project
 
 In your Gemfile :
 
@@ -17,43 +19,61 @@ In your ruby script :
 
 ```require 'balanced_vrp_clustering'```
 
-# Calling gem for clustering
+##### Clustering example
 
-Initialize your clusterer tool c :
+Initialize your clusterer tool c and provided needed data :
 
 ```c = Ai4r::Clusterers::BalancedVRPClustering.new```
 
-Provide maximum iterations and expected caracteristics of your clusters :
-
-```c.max_iterations = max_iterations```
-```c.vehicles_infos = vehicles_infos```
-vehicles_infos should be an array of hashes. Each hash should include following keys :
-- v_id (vehicle id),
-- days (list of day skills i.e. 'monday', 'tuesday'...),
-- depot (when matrix is provided, indice of depot in matrix, otherwise [latitude, longiture] of vehicle depot)
-- capacities (hash with key is unit and value is limit)
-- skills (list of skills i.e. 'big', 'heavy'...),
-- total_work_time (total work duration available for this vehicle, 0 if all vehicles are the same),
-- total_work_days (total number of days this vehicle can work)
-
-Provide your distance matrix if any, otherwise flying distance will be used :
-
-```c.distance_matrix = distance_matrix```
+```
+vehicles_infos = {
+  "v_id": vehicle_id e.g. 'vehicle_1',
+  "days": list of available days e.g. ['monday', 'tuesday'] ,
+  "depot": indice of corresponding depot in matrix, if any provided. Otherwise, [latitude, longitude] of vehicle depot,
+  "capactities": { "unit_1": 10, "unit_2": 100 },
+  "skills": list of skills e.g. ['big', 'heavy'],
+  "total_work_time": total work duration available for this vehicle, 0 if all vehicles are the same,
+  "total_work_days": total number of days this vehicle can work
+}
+c.vehicles_infos = vehicles_infos
+c.max_iterations = max_iterations
+c.distance_matrix = distance_matrix # provide distance matrix if any, otherwise flying distance will be used
+```
 
 Run clustering :
 
-```c.build(DataSet.new(data_items: data_items), cut_symbol, ratio)```
+```
+data_items = items.collect{ |i|
+  i[:latitude],
+  i[:longitude],
+  i[:id],
+  { "unit_1": i[:quantities]['unit_1'], "unit_2": i[:quantities]['unit_2'] },
+  { "v_id": id of vehicle that should be assigned to this item if any,
+    "skills": list of skills,
+    "days": list of available days,
+    "matrix_index": only if any matrix was provided
+  }
+}
+cut_symbol = unit to use when balancig clusters
+ratio = 1 by default, used to over/underestimate vehicles limits
+c.build(DataSet.new(data_items: data_items), cut_symbol, ratio)```
 
-data_items should be an array of arrays with following data :
-- latitude
-- longitude
-- item id
-- unit_quantities (hash where key is unit, value is quantity associated to this item)
-- characteristics (hash with following keys : v_id, skills, days, matrix_index. v_id is the id of vehicle that has to be assigned to this item. matrix_index should be provided only if matrix was provided).
 cut_symbol is the referent unit to use when balancing clusters. This unit should exist in both vehicles_infos and data_items structures.
-ratio is by default 1, it is used to over/underestimate vehicles limits.
+```
 
 Get clusters back :
 
-Each element of c.clusters (same size as vehicles_infos) has field data_items which is an array of all item in this cluster.
+```
+puts c.clusters.size # same same as vehicles_infos
+clusters = c.clusters.collect{ |generated_cluster|
+  generated_clusters.data_items.collect{ |item| item[2] } # item id
+}
+```
+
 Items have same structure as data_items initially provided.
+
+# Test
+
+```
+APP_ENV=test bundle exec rake test
+```
