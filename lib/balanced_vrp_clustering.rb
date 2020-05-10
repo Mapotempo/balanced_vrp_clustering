@@ -100,7 +100,7 @@ module Ai4r
         @iterations = 0
 
         if @cut_symbol
-          @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol] }
+          @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + (d[3][@cut_symbol] || 0) }
           if @total_cut_load.zero?
             @cut_symbol = nil # Disable balancing because there is no point
           else
@@ -429,7 +429,7 @@ module Ai4r
 
       def update_metrics(data_item, cluster_index)
         @unit_symbols.each{ |unit|
-          @centroids[cluster_index][3][unit] += data_item[3][unit]
+          @centroids[cluster_index][3][unit] += data_item[3][unit] if data_item[3][unit]
           next if unit != @cut_symbol
 
           @total_assigned_cut_load += data_item[3][unit]
@@ -444,7 +444,7 @@ module Ai4r
         return false if @strict_limitations.empty?
 
         @centroids[cluster_index][3].any?{ |unit, value|
-          value + item[3][unit] > (@strict_limitations[cluster_index][unit] || 0)
+          @strict_limitations[cluster_index][unit] && (value + item[3][unit] > @strict_limitations[cluster_index][unit])
         }
       end
     end
