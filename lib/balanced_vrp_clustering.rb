@@ -75,7 +75,7 @@ module Ai4r
         @unit_symbols |= @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles_infos.any?{ |c| c[:capacities] }
         @number_of_clusters = [@vehicles_infos.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
-        compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix)
+        compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix) if @cut_symbol == :duration
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles_infos, @data_set.data_items, options[:entity])
         @remaining_skills = @vehicles_infos.dup
 
@@ -151,7 +151,9 @@ module Ai4r
           @data_set.data_items.insert(0, @data_set.data_items.delete(point_closest_to_centroid_center))
 
           # correct the distance_from_and_to_depot info of the new cluster with the average of the points
-          centroid[4][:duration_from_and_to_depot][index] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f
+          if centroid[4][:duration_from_and_to_depot]
+            centroid[4][:duration_from_and_to_depot][index] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f
+          end
         }
 
         @iterations += 1
