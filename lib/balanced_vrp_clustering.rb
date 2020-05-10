@@ -50,7 +50,7 @@ module Ai4r
         #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
 
         ### return clean errors if unconsistent data ###
-        if data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
+        if cut_symbol && data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
           raise ArgumentError, 'Cut symbol corresponding unit should be provided for all item'
         end
 
