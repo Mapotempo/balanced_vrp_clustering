@@ -67,7 +67,7 @@ module OverloadableFunctions
     cumulated_metrics = Hash.new(0)
 
     (@unit_symbols || [cut_symbol]).each{ |unit|
-      cumulated_metrics[unit.to_sym] = data_items.collect{ |item| item[3][unit] || 0 }.reduce(&:+)
+      cumulated_metrics[unit] = data_items.collect{ |item| item[3][unit] || 0 }.reduce(&:+)
     }
 
     strict_limits = if vehicles_infos.none?{ |v_i| v_i[:capacities] }
