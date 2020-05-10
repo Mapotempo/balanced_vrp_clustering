@@ -71,11 +71,8 @@ module Ai4r
 
         @data_set = data_set
         @cut_symbol = cut_symbol
-        @unit_symbols = if @vehicles_infos.all?{ |c| c[:capacities] }
-          @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq
-        else
-          [cut_symbol]
-        end
+        @unit_symbols = [cut_symbol]
+        @unit_symbols |= @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles_infos.any?{ |c| c[:capacities] }
         @number_of_clusters = [@vehicles_infos.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
         compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix)
@@ -105,7 +102,7 @@ module Ai4r
         if @cut_symbol
           @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol] }
           if @total_cut_load.zero?
-            @cut_symbol = nil # Disable balanacing because there is no point
+            @cut_symbol = nil # Disable balancing because there is no point
           else
             @data_set.data_items.sort_by!{ |x| x[3][@cut_symbol] ? -x[3][@cut_symbol] : 0 }
             data_length = @data_set.data_items.size
