@@ -122,8 +122,9 @@ module Ai4r
           recompute_centroids
         end
 
-        if options[:last_iteration_balance_rate]
-          @rate_balance = options[:last_iteration_balance_rate]
+        if options[:last_iteration_balance_rate] || options[:last_iteration_no_strict_limitations]
+          @rate_balance = options[:last_iteration_balance_rate] if options[:last_iteration_balance_rate]
+          @strict_limitations = [] if options[:last_iteration_no_strict_limitations]
 
           update_cut_limit
 
