@@ -60,13 +60,13 @@ module Ai4r
         data_set.data_items.each{ |item|
           item[4][:v_id] ||= []
           item[4][:skills] ||= []
-          item[4][:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
+          item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
         }
 
         vehicles_infos.each{ |vehicle_info|
           vehicle_info[:total_work_days] ||= 1
           vehicle_info[:skills] ||= []
-          vehicle_info[:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
+          vehicle_info[:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
         }
 
         ### values ###
@@ -189,10 +189,10 @@ module Ai4r
 
         cut_value = @centroids[cluster_index][3][@cut_symbol].to_f
         limit = if @cut_limit.is_a? Array
-          @cut_limit[cluster_index][:limit]
-        else
-          @cut_limit[:limit]
-        end
+                  @cut_limit[cluster_index][:limit]
+                else
+                  @cut_limit[:limit]
+                end
 
         # balance between clusters computation
         balance = 1.0
