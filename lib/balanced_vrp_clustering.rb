@@ -105,6 +105,7 @@ module Ai4r
         @i_like_to_move_it_move_it = []
         @moved_up = 0
         @moved_down = 0
+        @clusters_with_capacity_violation = Array.new(@number_of_clusters){ [] }
 
         if @cut_symbol
           @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
@@ -230,7 +231,28 @@ module Ai4r
           end
         }
 
+        swap_centroids_with_capacity_problems
+
         @iterations += 1
+      end
+
+      def swap_centroids_with_capacity_problems
+        @clusters_with_capacity_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
+          break if preferred_clusters.empty?
+
+          favorite_cluster = preferred_clusters.uniq.sample
+
+          # TODO: if the favorite one is also overloaded just find one that is not too loaded and has a bigger capacity and swap with that one!!!!!
+          # TODO: don't forget to check the limit for the check_if_projection_on_the_line_segment function is 0.1 best ?
+
+          # puts "swapped #{violated_cluster + 1} with #{favorite_cluster + 1}"
+
+          swap_safe = @centroids[violated_cluster][0..2]
+          @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
+          @centroids[favorite_cluster][0..2] = swap_safe
+        }
+
+        @clusters_with_capacity_violation.each(&:clear)
       end
 
       # Classifies the given data item, returning the cluster index it belongs
@@ -257,6 +279,7 @@ module Ai4r
             mininimum_without_capacity_violation = distances[k]
           }
           if closest_cluster_wo_violation_index
+            @clusters_with_capacity_violation[closest_cluster_index] << closest_cluster_wo_violation_index
             @i_like_to_move_it_move_it << [data_item, mininimum_without_capacity_violation - distances.min, mininimum_without_capacity_violation / distances.min, closest_cluster_index, closest_cluster_wo_violation_index]
             closest_cluster_index = closest_cluster_wo_violation_index
           end
