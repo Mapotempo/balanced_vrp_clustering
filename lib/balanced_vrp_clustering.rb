@@ -140,9 +140,21 @@ module Ai4r
       def recompute_centroids
         @old_centroids_lat_lon = @centroids.collect{ |centroid| [centroid[0], centroid[1]] }
 
+        centroid_smoothing_coeff = 0.1 + 0.9 * (@iterations / @max_iterations.to_f)**0.5
+
         @centroids.each_with_index{ |centroid, index|
-          centroid[0] = Statistics.mean(@clusters[index], 0)
-          centroid[1] = Statistics.mean(@clusters[index], 1)
+          # Smooth the centroid movement (and keeps track of the "history") with the previous centroid (to prevent erratic jumps)
+          # Calculates the new centroid with weighted mean (using the number of visits and distance to current centroid as a weight)
+          # That's what matters the most (how many times we have to go to a zone an how far this zone is)
+          total_weighted_visit_distance = 0
+          @clusters[index].data_items.each{ |d_i|
+            d_i[3][:weighted_visit_distance] = d_i[3][:visits] * Helper.flying_distance(centroid, d_i) + 1e-10
+
+            d_i[3][:moved_up] = d_i[3][:moved_down] = nil
+            total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
+          }
+          centroid[0] = centroid_smoothing_coeff * centroid[0] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[0] * d_i[3][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
+          centroid[1] = centroid_smoothing_coeff * centroid[1] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[1] * d_i[3][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
 
           # A selector which selects closest point to represent the centroid which is the most "representative" in terms of distace to the
           point_closest_to_centroid_center = clusters[index].data_items.min_by([[(@clusters[index].data_items.size / 10.0).ceil, 5].min, 2].max){ |data_point|
