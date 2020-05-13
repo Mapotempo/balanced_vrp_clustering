@@ -61,6 +61,7 @@ module Ai4r
           item[4][:v_id] ||= []
           item[4][:skills] ||= []
           item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+          item[3][:visits] ||= 1
         }
 
         vehicles_infos.each{ |vehicle_info|
