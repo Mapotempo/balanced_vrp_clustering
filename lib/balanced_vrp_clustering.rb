@@ -144,8 +144,15 @@ module Ai4r
           centroid[0] = Statistics.mean(@clusters[index], 0)
           centroid[1] = Statistics.mean(@clusters[index], 1)
 
-          point_closest_to_centroid_center = clusters[index].data_items.min_by{ |data_point| Helper.flying_distance(centroid, data_point) }
+          # A selector which selects closest point to represent the centroid which is the most "representative" in terms of distace to the
+          point_closest_to_centroid_center = clusters[index].data_items.min_by([[(@clusters[index].data_items.size / 10.0).ceil, 5].min, 2].max){ |data_point|
+            Helper.flying_distance(centroid, data_point)
+          }.min_by{ |data_point|
+            clusters[index].data_items.sum{ |d_i| @distance_function.call(data_point, d_i) * d_i[3][:visits] } # / total_visits_in_cluster.to_f
+          }
 
+          # register the id and matrix_index of the point representing the centroid
+          centroid[2] = point_closest_to_centroid_center[2].dup # id TODO: Check if dup necessary ?
           # correct the matrix_index of the centroid with the index of the point_closest_to_centroid_center
           centroid[4][:matrix_index] = point_closest_to_centroid_center[4][:matrix_index] if centroid[4][:matrix_index]
 
