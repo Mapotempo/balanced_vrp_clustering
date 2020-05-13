@@ -249,10 +249,19 @@ module Ai4r
         @clusters_with_capacity_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
           break if preferred_clusters.empty?
 
-          favorite_cluster = preferred_clusters.uniq.sample
+          favorite_cluster = if rand < 0.10
+                               # TODO: elimination/determination of units per cluster should be done at the beginning
+                               # Each centroid should know what matters to them.
+                               the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v}.keys
 
-          # TODO: if the favorite one is also overloaded just find one that is not too loaded and has a bigger capacity and swap with that one!!!!!
-          # TODO: don't forget to check the limit for the check_if_projection_on_the_line_segment function is 0.1 best ?
+                               @centroids.map.with_index.select{ |c, _i|
+                                 the_units_that_matter.all?{ |unit| c[3][unit] < @centroids[violated_cluster][3][unit] }
+                               }.min_by{ |c, i|
+                                 the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[i][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
+                               }[1]
+                             else
+                               preferred_clusters.uniq.sample
+                             end
 
           # puts "swapped #{violated_cluster + 1} with #{favorite_cluster + 1}"
 
