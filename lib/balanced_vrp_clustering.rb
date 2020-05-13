@@ -102,11 +102,11 @@ module Ai4r
         @iterations = 0
 
         if @cut_symbol
-          @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + (d[3][@cut_symbol] || 0) }
+          @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
           if @total_cut_load.zero?
             @cut_symbol = nil # Disable balancing because there is no point
           else
-            @data_set.data_items.sort_by!{ |x| x[3][@cut_symbol] ? -x[3][@cut_symbol] : 0 }
+            @data_set.data_items.sort_by! { |x| -x[3][@cut_symbol].to_f }
             data_length = @data_set.data_items.size
             @data_set.data_items[(data_length * 0.1).to_i..(data_length * 0.90).to_i] = @data_set.data_items[(data_length * 0.1).to_i..(data_length * 0.90).to_i].shuffle!
           end
