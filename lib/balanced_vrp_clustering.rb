@@ -54,7 +54,7 @@ module Ai4r
           raise ArgumentError, 'Cut symbol corresponding unit should be provided for all item'
         end
 
-        raise ArgumentError, 'Should provide max_iterations' if @max_iterations.nil?
+        @max_iterations ||= [0.5 * data_set.data_items.size, 100].max
 
         ### default values ###
         data_set.data_items.each{ |item|
@@ -115,7 +115,7 @@ module Ai4r
         calc_initial_centroids
 
         @rate_balance = 0.0
-        until stop_criteria_met
+        until stop_criteria_met || @iterations >= @max_iterations
           @rate_balance = 1.0 - (0.2 * @iterations / @max_iterations) if @cut_symbol
 
           update_cut_limit
@@ -362,8 +362,7 @@ module Ai4r
 
       def stop_criteria_met
         @old_centroids_lat_lon == @centroids.collect{ |c| [c[0], c[1]] } ||
-          same_centroid_distance_moving_average(Math.sqrt(@iterations).to_i) || # Check if there is a loop of size Math.sqrt(@iterations)
-          (@max_iterations && (@max_iterations <= @iterations))
+          same_centroid_distance_moving_average(Math.sqrt(@iterations).to_i) # Check if there is a loop of size Math.sqrt(@iterations)
       end
 
       private
