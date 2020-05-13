@@ -102,6 +102,10 @@ module Ai4r
         ### algo start ###
         @iterations = 0
 
+        @i_like_to_move_it_move_it = []
+        @moved_up = 0
+        @moved_down = 0
+
         if @cut_symbol
           @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
           if @total_cut_load.zero?
@@ -137,7 +141,49 @@ module Ai4r
         self
       end
 
+      def move_capacity_violating_dataitems
+        needs_moving_up = @i_like_to_move_it_move_it.size
+        mean_distance_diff = @i_like_to_move_it_move_it.collect{ |d| d[1] }.mean
+        mean_ratio = @i_like_to_move_it_move_it.collect{ |d| d[2] }.mean
+        ratio_limit = [2 * mean_ratio.to_f, 5].min
+
+        @moved_down = 0
+        @moved_up = 0
+
+        # TODO: check if ordering the items of i_like_to_move_it_move_it array helps.
+        # Since the last one that is moved up will appear at the very top and vice-versa for the down.
+        # We need the most distant ones to closer to the top so that the cluster can move to that direction next iteration
+        # but a random order might work better for the down ones since they are in the middle and the border is not a straight line
+        until @i_like_to_move_it_move_it.empty? do
+          data = @i_like_to_move_it_move_it.pop
+
+          # TODO: check the effectiveness of the following stochastic condition.
+          # Specifically, shouldn't we moving the "up" ones no matter what...?
+          # Because they will help the centroid to move the "right" way.
+
+          # if the capacity violation leads to more than 2-5 times increase, move it
+          # otherwise, move it with a probability correlated to the detour it generated
+          if data[2] > ratio_limit || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
+            point = data[0][0..1]
+            centroid_with_violation = @centroids[data[3]][0..1]
+            centroid_witout_violation = @centroids[data[4]][0..1]
+            if Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
+              @moved_down += 1
+              data[0][3][:moved_down] = true
+              @data_set.data_items.insert(@data_set.data_items.size - 1, @data_set.data_items.delete(data[0]))
+            else
+              @moved_up += 1
+              data[0][3][:moved_up] = true
+              @data_set.data_items.insert(0, @data_set.data_items.delete(data[0]))
+            end
+          end
+        end
+        # puts "#{needs_moving_up} \tpoints needs love, #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{needs_moving_up - @moved_down - @moved_up} of them untouched \tviolations=#{@clusters_with_capacity_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}"
+      end
+
       def recompute_centroids
+        move_capacity_violating_dataitems
+
         @old_centroids_lat_lon = @centroids.collect{ |centroid| [centroid[0], centroid[1]] }
 
         centroid_smoothing_coeff = 0.1 + 0.9 * (@iterations / @max_iterations.to_f)**0.5
@@ -148,8 +194,13 @@ module Ai4r
           # That's what matters the most (how many times we have to go to a zone an how far this zone is)
           total_weighted_visit_distance = 0
           @clusters[index].data_items.each{ |d_i|
-            d_i[3][:weighted_visit_distance] = d_i[3][:visits] * Helper.flying_distance(centroid, d_i) + 1e-10
-
+            d_i[3][:weighted_visit_distance] = if d_i[3][:moved_up]
+                                                 d_i[3][:visits] * 0.1 * Helper.flying_distance(centroid, d_i) + 1e-10
+                                               elsif d_i[3][:moved_down]
+                                                 d_i[3][:visits] * 10 * Helper.flying_distance(centroid, d_i) + 1e-10
+                                               else
+                                                 d_i[3][:visits] * Helper.flying_distance(centroid, d_i) + 1e-10
+                                               end
             d_i[3][:moved_up] = d_i[3][:moved_down] = nil
             total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
           }
@@ -185,19 +236,33 @@ module Ai4r
       # Classifies the given data item, returning the cluster index it belongs
       # to (0-based).
       def evaluate(data_item)
-        get_min_index(@centroids.collect.with_index{ |centroid, cluster_index|
+        distances = @centroids.collect.with_index{ |centroid, cluster_index|
           dist = distance(data_item, centroid, cluster_index)
 
-          unless @compatibility_function.call(data_item, centroid)
-            dist += 2**32
-          end
-
-          if capactity_violation?(data_item, cluster_index)
-            dist += 2**16
-          end
+          dist += 2**32 unless @compatibility_function.call(data_item, centroid)
 
           dist
-        })
+        }
+
+        closest_cluster_index = get_min_index(distances)
+
+        if capactity_violation?(data_item, closest_cluster_index)
+          mininimum_without_capacity_violation = 2**32 # only consider compatible ones
+          closest_cluster_wo_violation_index = nil
+          @number_of_clusters.times{ |k|
+            next unless distances[k] < mininimum_without_capacity_violation &&
+                        !capactity_violation?(data_item, k)
+
+            closest_cluster_wo_violation_index = k
+            mininimum_without_capacity_violation = distances[k]
+          }
+          if closest_cluster_wo_violation_index
+            @i_like_to_move_it_move_it << [data_item, mininimum_without_capacity_violation - distances.min, mininimum_without_capacity_violation / distances.min, closest_cluster_index, closest_cluster_wo_violation_index]
+            closest_cluster_index = closest_cluster_wo_violation_index
+          end
+        end
+
+        closest_cluster_index
       end
 
       protected
@@ -381,8 +446,8 @@ module Ai4r
       end
 
       def stop_criteria_met
-        @old_centroids_lat_lon == @centroids.collect{ |c| [c[0], c[1]] } ||
-          same_centroid_distance_moving_average(Math.sqrt(@iterations).to_i) # Check if there is a loop of size Math.sqrt(@iterations)
+        centroids_converged_or_in_loop(Math.sqrt(@iterations).to_i) && # This check should stay first since it keeps track of the centroid movements..
+          (@moved_up + @moved_down).zero? # Do not converge if the order of the data items has changed in the last iteration
       end
 
       private
@@ -418,7 +483,8 @@ module Ai4r
         }
       end
 
-      def same_centroid_distance_moving_average(last_n_iterations)
+      def centroids_converged_or_in_loop(last_n_iterations)
+        # Checks if there is a loop of size last_n_iterations
         if @iterations.zero?
           # Initialize the array stats array
           @last_n_average_diffs = [0.0] * (2 * last_n_iterations + 1)
