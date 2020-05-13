@@ -146,25 +146,34 @@ module Ai4r
         needs_moving_up = @i_like_to_move_it_move_it.size
         mean_distance_diff = @i_like_to_move_it_move_it.collect{ |d| d[1] }.mean
         mean_ratio = @i_like_to_move_it_move_it.collect{ |d| d[2] }.mean
-        ratio_limit = [2 * mean_ratio.to_f, 5].min
 
         @moved_down = 0
         @moved_up = 0
 
-        # TODO: check if ordering the items of i_like_to_move_it_move_it array helps.
+        # TODO: check if any other type of ordering might help
         # Since the last one that is moved up will appear at the very top and vice-versa for the down.
         # We need the most distant ones to closer to the top so that the cluster can move to that direction next iteration
         # but a random order might work better for the down ones since they are in the middle and the border is not a straight line
+        # nothing vanilla order 9/34
+        # @i_like_to_move_it_move_it.shuffle!  7/34 not much of help. it increases normal iteration count but decreases the loop time
+        # @i_like_to_move_it_move_it.sort_by!{ |i| i[5] } 6/34 fails .. good
+        # @i_like_to_move_it_move_it.sort_by!{ |i| -i[5] } 5/34 fails .. better
+        # 0.33sort+ and 0.66sort-  #8/21 fails ... bad
+        # 0.33shuffle and 0.66sort- #7/20 fails ... bad
+
+        @i_like_to_move_it_move_it.sort_by!{ |i| -i[5] }
+
         until @i_like_to_move_it_move_it.empty? do
           data = @i_like_to_move_it_move_it.pop
 
           # TODO: check the effectiveness of the following stochastic condition.
-          # Specifically, shouldn't we moving the "up" ones no matter what...?
-          # Because they will help the centroid to move the "right" way.
+          # Specifically, moving the "up" ones always would be better...?
+          # But the downs are the really problematic ones so moving them would make sense too.
+          # Tested some options but it looks alright as it is.. Needs more testing.
 
           # if the capacity violation leads to more than 2-5 times increase, move it
           # otherwise, move it with a probability correlated to the detour it generated
-          if data[2] > ratio_limit || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
+          if data[2] > [2 * mean_ratio.to_f, 5].min || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
             point = data[0][0..1]
             centroid_with_violation = @centroids[data[3]][0..1]
             centroid_witout_violation = @centroids[data[4]][0..1]
@@ -280,7 +289,8 @@ module Ai4r
           }
           if closest_cluster_wo_violation_index
             @clusters_with_capacity_violation[closest_cluster_index] << closest_cluster_wo_violation_index
-            @i_like_to_move_it_move_it << [data_item, mininimum_without_capacity_violation - distances.min, mininimum_without_capacity_violation / distances.min, closest_cluster_index, closest_cluster_wo_violation_index]
+            mininimum_with_capacity_violation = distances.min
+            @i_like_to_move_it_move_it << [data_item, mininimum_without_capacity_violation - mininimum_with_capacity_violation, mininimum_without_capacity_violation / mininimum_with_capacity_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_capacity_violation]
             closest_cluster_index = closest_cluster_wo_violation_index
           end
         end
