@@ -412,7 +412,7 @@ module Ai4r
         }
 
         # If convereged, we can stop
-        return true if total_movement_meter.to_f < 1
+        return true if total_movement_meter < @number_of_clusters * 10
 
         @last_n_average_diffs.push total_movement_meter.to_f
 
