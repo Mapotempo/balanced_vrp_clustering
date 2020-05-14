@@ -69,6 +69,7 @@ module Ai4r
           vehicle_info[:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
         }
 
+        ### values ###
         @data_set = data_set
         @cut_symbol = cut_symbol
         @unit_symbols = [cut_symbol]
@@ -97,6 +98,7 @@ module Ai4r
           end
         end
 
+        ### algo start ###
         @iterations = 0
 
         if @cut_symbol
@@ -130,8 +132,6 @@ module Ai4r
 
           calculate_membership_clusters
         end
-
-        self
       end
 
       def recompute_centroids
@@ -153,7 +153,7 @@ module Ai4r
 
           # correct the distance_from_and_to_depot info of the new cluster with the average of the points
           if centroid[4][:duration_from_and_to_depot]
-            centroid[4][:duration_from_and_to_depot][index] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f
+            centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot] }.reduce(&:+) / @clusters[index].data_items.size.to_f
           end
         }
 
@@ -368,7 +368,7 @@ module Ai4r
 
       def compute_vehicle_work_time_with
         coef = @centroids.map.with_index{ |centroid, index|
-          @vehicles_infos[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot][index], 1].max * @vehicles_infos[index][:total_work_days])
+          @vehicles_infos[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles_infos[index][:total_work_days])
         }.min
 
         # TODO: The following filter is there to not to affect the existing functionality.
@@ -382,7 +382,7 @@ module Ai4r
                end
 
         @centroids.map.with_index{ |centroid, index|
-          @vehicles_infos[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot][index] * @vehicles_infos[index][:total_work_days]
+          @vehicles_infos[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles_infos[index][:total_work_days]
         }
       end
 
@@ -437,7 +437,7 @@ module Ai4r
 
           @total_assigned_cut_load += data_item[3][unit]
           @percent_assigned_cut_load = @total_assigned_cut_load / @total_cut_load.to_f
-          if !@apply_balancing && @centroids.all?{ |cm| cm[3][@cut_symbol].positive? }
+          if !@apply_balancing && @centroids.all?{ |centroid| centroid[3][@cut_symbol].positive? }
             @apply_balancing = true
           end
         }
