@@ -50,7 +50,9 @@ module Instance
     clusterer.vehicles = [
       {
         id: ['vehicle_0'],
-        depot: [45.604784, 4.758965],
+        depot: {
+          coordinates: [45.604784, 4.758965],
+        },
         capacities: { visits: 6 },
         skills: [],
         day_skills: ['all_days'],
@@ -58,7 +60,9 @@ module Instance
         total_work_days: 1
       }, {
         id: ['vehicle_1'],
-        depot: [45.576412, 4.805614],
+        depot: {
+          coordinates: [45.576412, 4.805614],
+        },
         capacities: { visits: 6 },
         skills: [],
         day_skills: ['all_days'],
@@ -67,10 +71,10 @@ module Instance
       }
     ]
 
-    data_set = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'] }],
-                                          [45.344334, 4.817731, 'point_2', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'] }],
-                                          [45.576412, 4.805614, 'point_3', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'] }],
-                                          [45.258324, 4.687322, 'point_4', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'] }]])
+    data_set = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [0.0, 4814.68] }],
+                                        [45.344334, 4.817731, 'point_2', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [29354.21, 25852.47] }],
+                                        [45.576412, 4.805614, 'point_3', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [4814.68, 0.0] }],
+                                        [45.258324, 4.687322, 'point_4', { visits: 1 }, { v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [38972.24, 36596.43] }]])
 
     [clusterer, data_set]
   end
@@ -88,7 +92,10 @@ module Instance
     clusterer.vehicles = [
       {
         id: ['vehicle_0'],
-        depot: [0],
+        depot: {
+          matrix_index: 0,
+          coordinates: [45.604784, 4.758965]
+        },
         capacities: { visits: 6 },
         skills: [],
         day_skills: ['all_days'],
@@ -96,7 +103,10 @@ module Instance
         total_work_days: 1
       }, {
         id: ['vehicle_1'],
-        depot: [0],
+        depot: {
+          matrix_index: 0,
+          coordinates: [45.604784, 4.758965]
+        },
         capacities: { visits: 6 },
         skills: [],
         day_skills: ['all_days'],
@@ -105,10 +115,10 @@ module Instance
       }
     ]
 
-    data_set = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { matrix_index: 1, v_id: [], skills: [], day_skills: ['all_days'] }],
-                                          [45.344334, 4.817731, 'point_2', { visits: 1 }, { matrix_index: 2, v_id: [], skills: [], day_skills: ['all_days'] }],
-                                          [45.576412, 4.805614, 'point_3', { visits: 1 }, { matrix_index: 3, v_id: [], skills: [], day_skills: ['all_days'] }],
-                                          [45.258324, 4.687322, 'point_4', { visits: 1 }, { matrix_index: 4, v_id: [], skills: [], day_skills: ['all_days'] }]])
+    data_set = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { matrix_index: 1, v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [2824, 2824] }],
+                                        [45.344334, 4.817731, 'point_2', { visits: 1 }, { matrix_index: 2, v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [1110, 1110] }],
+                                        [45.576412, 4.805614, 'point_3', { visits: 1 }, { matrix_index: 3, v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [2299, 2299] }],
+                                        [45.258324, 4.687322, 'point_4', { visits: 1 }, { matrix_index: 4, v_id: [], skills: [], day_skills: ['all_days'], duration_from_and_to_depot: [1823, 1823] }]])
 
     [clusterer, data_set]
   end

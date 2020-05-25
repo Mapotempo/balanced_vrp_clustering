@@ -37,23 +37,29 @@ module OverloadableFunctions
   def compute_distance_from_and_to_depot(vehicles, data_set, matrix)
     return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot] }
 
-    if matrix # matrix_index
-      single_index_array = vehicles.first[:depot]
-      point_indices = data_set.data_items.map{ |point| point[4][:matrix_index] }
-      time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
-      time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
-    else
-      items_locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
-      time_matrix_from_depot = [items_locations.collect{ |item_location|
-        Helper.euclidean_distance(vehicles.first[:depot], item_location)
-      }]
-      time_matrix_to_depot = items_locations.collect{ |item_location|
-        [Helper.euclidean_distance(item_location, vehicles.first[:depot])]
-      }
-    end
+    data_set.data_items.each{ |point|
+      point[4][:duration_from_and_to_depot] = []
+    }
 
-    data_set.data_items.each_with_index{ |point, index|
-      point[4][:duration_from_and_to_depot] = time_matrix_from_depot[0][index] + time_matrix_to_depot[index][0]
+    vehicles.each{ |vehicle_info|
+      if matrix
+        single_index_array = [vehicle_info[:depot][:matrix_index]]
+        point_indices = data_set.data_items.map{ |point| point[4][:matrix_index] }
+        time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
+        time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
+      else
+        items_locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
+        time_matrix_from_depot = [items_locations.collect{ |item_location|
+          Helper.euclidean_distance(vehicle_info[:depot][:coordinates], item_location)
+        }]
+        time_matrix_to_depot = items_locations.collect{ |item_location|
+          [Helper.euclidean_distance(item_location, vehicle_info[:depot][:coordinates])]
+        }
+      end
+
+      data_set.data_items.each_with_index{ |point, index|
+        point[4][:duration_from_and_to_depot] << time_matrix_from_depot[0][index] + time_matrix_to_depot[index][0]
+      }
     }
   end
 
