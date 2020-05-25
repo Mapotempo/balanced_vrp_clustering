@@ -77,11 +77,11 @@ module Ai4r
 
         ### return clean errors if inconsistent data ###
         if distance_matrix
-          if @vehicles.any?{ |v_i| v_i[:depot]&.size != 1 } ||
-             data_set.data_items.any?{ |item| !item[4][:matrix_index] }
+          if @vehicles.any?{ |v_i| v_i[:depot][:matrix_index].nil? } ||
+            data_set.data_items.any?{ |item| !item[4][:matrix_index] }
             raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
           end
-        elsif @vehicles.any?{ |v_i| v_i[:depot]&.compact&.size != 2 }
+        elsif @vehicles.any?{ |v_i| v_i[:depot][:coordinates].size != 2 }
           raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all vehicles'
         end
 
@@ -320,9 +320,9 @@ module Ai4r
           @data_set.data_items.insert(0, @data_set.data_items.delete(point_closest_to_centroid_center))
 
           # correct the distance_from_and_to_depot info of the new cluster with the average of the points
-          if centroid[4][:duration_from_and_to_depot]
-            centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot] }.reduce(&:+) / @clusters[index].data_items.size.to_f
-          end
+          next unless centroid[4][:duration_from_and_to_depot]
+
+          centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f
         }
 
         swap_a_centroid_with_limit_violation
@@ -553,7 +553,7 @@ module Ai4r
             item = compatible_items[rand(compatible_items.size)]
 
             skills[:matrix_index] = item[4][:matrix_index]
-            skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
+            skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot][@centroids.length]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
@@ -573,7 +573,7 @@ module Ai4r
             raise ArgumentError, "Centroid #{ind} is initialised with an incompatible service -- #{index}" unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
             skills[:matrix_index] = item[4][:matrix_index]
-            skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
+            skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot][@centroids.length]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
             insert_at_begining << item
@@ -803,7 +803,7 @@ module Ai4r
               stroke: '#000000',
               'stroke-opacity': 0,
               'stroke-width': 10,
-              name: "#{@centroids[c_index][4][:id]&.join(',')}_center",
+              name: "#{@centroids[c_index][4][:v_id]&.join(',')}_center",
               lat_lon: @centroids[c_index][0..1].join(','),
               lon_lat: @centroids[c_index][0..1].reverse.join(','),
               matrix_index: @centroids[c_index][3][:matrix_index],
