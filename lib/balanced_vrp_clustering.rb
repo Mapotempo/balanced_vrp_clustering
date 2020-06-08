@@ -58,6 +58,8 @@ module Ai4r
 
         ### default values ###
         data_set.data_items.each{ |item|
+          item[3].default = nil
+          item[4].default = nil
           item[4][:v_id] ||= []
           item[4][:skills] ||= []
           item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
@@ -561,10 +563,10 @@ module Ai4r
 
       def update_metrics(data_item, cluster_index)
         @unit_symbols.each{ |unit|
-          @centroids[cluster_index][3][unit] += data_item[3][unit] if data_item[3][unit]
+          @centroids[cluster_index][3][unit] += data_item[3][unit].to_f
           next if unit != @cut_symbol
 
-          @total_assigned_cut_load += data_item[3][unit]
+          @total_assigned_cut_load += data_item[3][unit].to_f
           @percent_assigned_cut_load = @total_assigned_cut_load / @total_cut_load.to_f
           if !@apply_balancing && @centroids.all?{ |centroid| centroid[3][@cut_symbol].positive? }
             @apply_balancing = true
@@ -576,7 +578,7 @@ module Ai4r
         return false if @strict_limitations.empty?
 
         @centroids[cluster_index][3].any?{ |unit, value|
-          @strict_limitations[cluster_index][unit] && (value + item[3][unit] > @strict_limitations[cluster_index][unit])
+          @strict_limitations[cluster_index][unit] && (value + item[3][unit].to_f > @strict_limitations[cluster_index][unit])
         }
       end
     end
