@@ -26,7 +26,7 @@ Initialize your clusterer tool c and provided needed data :
 ```c = Ai4r::Clusterers::BalancedVRPClustering.new```
 
 ```
-vehicles_infos = {
+vehicles = {
   "v_id": vehicle_id e.g. 'vehicle_1',
   "days": list of available days e.g. ['monday', 'tuesday'] ,
   "depot": indice of corresponding depot in matrix, if any provided. Otherwise, [latitude, longitude] of vehicle depot,
@@ -35,7 +35,7 @@ vehicles_infos = {
   "total_work_time": total work duration available for this vehicle, 0 if all vehicles are the same,
   "total_work_days": total number of days this vehicle can work
 }
-c.vehicles_infos = vehicles_infos
+c.vehicles = vehicles
 c.max_iterations = max_iterations
 c.distance_matrix = distance_matrix # provide distance matrix if any, otherwise flying distance will be used
 ```
@@ -58,13 +58,13 @@ cut_symbol = unit to use when balancig clusters
 ratio = 1 by default, used to over/underestimate vehicles limits
 c.build(DataSet.new(data_items: data_items), cut_symbol, ratio)```
 
-cut_symbol is the referent unit to use when balancing clusters. This unit should exist in both vehicles_infos and data_items structures.
+cut_symbol is the referent unit to use when balancing clusters. This unit should exist in both vehicles and data_items structures.
 ```
 
 Get clusters back :
 
 ```
-puts c.clusters.size # same same as vehicles_infos
+puts c.clusters.size # same same as vehicles
 clusters = c.clusters.collect{ |generated_cluster|
   generated_clusters.data_items.collect{ |item| item[2] } # item id
 }

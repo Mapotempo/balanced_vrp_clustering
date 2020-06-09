@@ -47,7 +47,7 @@ class ClusteringTest < Minitest::Test
     clusterer.build(data_items, :visits)
 
     generated_clusters = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[2] } }
-    clusterer.vehicles_infos.first[:skills] = ['vehicle1']
+    clusterer.vehicles.first[:skills] = ['vehicle1']
     data_items.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:skills] = ['vehicle1']
     data_items.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:skills] = ['vehicle1']
 
@@ -63,7 +63,7 @@ class ClusteringTest < Minitest::Test
     clusterer.build(data_items, :visits)
 
     generated_clusters = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[2] } }
-    clusterer.vehicles_infos.first[:v_id] = ['vehicle1']
+    clusterer.vehicles.first[:v_id] = ['vehicle1']
     data_items.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:v_id] = ['vehicle1']
     data_items.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:v_id] = ['vehicle1']
 
@@ -77,7 +77,7 @@ class ClusteringTest < Minitest::Test
   def test_with_days
     clusterer, data_items = Instance.two_clusters_4_items
 
-    clusterer.vehicles_infos.first[:days] = ['mon']
+    clusterer.vehicles.first[:days] = ['mon']
     data_items.data_items[0][4][:days] = ['mon']
     data_items.data_items[1][4][:days] = ['mon']
     expected = [data_items.data_items[0][2], data_items.data_items[1][2]]
@@ -96,7 +96,7 @@ class ClusteringTest < Minitest::Test
       puts "Regularity trial: #{trial}/#{regularity_restart}"
       max_balance_deviation = 0
 
-      vehicles_infos = Marshal.load(File.binread('test/fixtures/cluster_balance_vehicles_infos.bindump'))
+      vehicles = Marshal.load(File.binread('test/fixtures/cluster_balance_vehicles_infos.bindump'))
       data_set = Marshal.load(File.binread('test/fixtures/cluster_balance_data_set.bindump'))
 
       clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
@@ -110,13 +110,13 @@ class ClusteringTest < Minitest::Test
         total_load_by_units = Hash.new(0)
         data_set.data_items.each{ |item| item[3].each{ |unit, quantity| total_load_by_units[unit] += quantity } }
         # Adapt each vehicle capacity according to items to clusterize
-        vehicles_infos.each{ |v_i|
+        vehicles.each{ |v_i|
           v_i[:capacities] = {}
           total_load_by_units.collect{ |unit, quantity|
             v_i[:capacities][unit] = quantity * 0.65
           }
         }
-        clusterer.vehicles_infos = vehicles_infos
+        clusterer.vehicles = vehicles
 
         clusterer.build(data_set, :duration, 1.0, entity: :vehicle)
         repartition = clusterer.clusters.collect{ |c| c.data_items.size }
@@ -170,7 +170,7 @@ class ClusteringTest < Minitest::Test
 
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
     clusterer.max_iterations = 300
-    clusterer.vehicles_infos = Marshal.load(File.binread('test/fixtures/avoid_overlap_vehicles_infos.bindump'))
+    clusterer.vehicles = Marshal.load(File.binread('test/fixtures/avoid_overlap_vehicles_infos.bindump'))
     clusterer.distance_matrix = Marshal.load(File.binread('test/fixtures/avoid_overlap_distance_matrix.bindump'))
 
     clusterer.build(data_set, :duration, 1.0, entity: :vehicle)
@@ -179,10 +179,10 @@ class ClusteringTest < Minitest::Test
 
     assert clusterer.clusters.collect{ |cluster|
       cluster.data_items.collect{ |item| item[3][:kg] * item[3][:visits_number] }.reduce(&:+)
-    }.select.with_index{ |value, i| value > clusterer.vehicles_infos[i][:capacities][:qte] }.size <= 1
+    }.select.with_index{ |value, i| value > clusterer.vehicles[i][:capacities][:qte] }.size <= 1
 
     assert clusterer.clusters.collect{ |cluster|
       cluster.data_items.collect{ |item| item[3][:qte] * item[3][:visits_number] }.reduce(&:+)
-    }.select.with_index{ |value, i| value > clusterer.vehicles_infos[i][:capacities][:qte] }.size <= 1
+    }.select.with_index{ |value, i| value > clusterer.vehicles[i][:capacities][:qte] }.size <= 1
   end
 end

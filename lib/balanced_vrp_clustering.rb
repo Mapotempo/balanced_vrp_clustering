@@ -31,13 +31,13 @@ module Ai4r
       attr_reader :iterations
       attr_reader :cut_limit
 
-      parameters_info vehicles_infos: 'Attributes of each cluster to generate. If centroid_indices are provided
-                      then vehicles_infos should be ordered according to centroid_indices order',
+      parameters_info vehicles: 'Attributes of each cluster to generate. If centroid_indices are provided
+                      then vehicles should be ordered according to centroid_indices order',
+                      vehicles_infos: '(DEPRECATED) Use vehicles',
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
                       compatibility_function: 'Custom implementation of a compatibility_function.'\
                         'It must be a closure receiving a data item and a centroid and return a '\
-                        'boolean (true: if compatible and false: if incompatible). '\
-                        'By default, this implementation uses a function which always returns true.'
+                        'boolean (true: if compatible and false: if incompatible).'
 
       def build(data_set, cut_symbol, cut_ratio = 1.0, options = {})
         # Build a new clusterer, using data items found in data_set.
@@ -49,41 +49,23 @@ module Ai4r
         #    index 3 : unit_quantities -> for each unit, quantity associated to this item
         #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
 
+        # DEPRECATED variables (to be removed before public release)
+        @vehicles ||= @vehicles_infos # (DEPRECATED)
+
         ### return clean errors if unconsistent data ###
         if cut_symbol && data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
           raise ArgumentError, 'Cut symbol corresponding unit should be provided for all item'
         end
 
-        @max_iterations ||= [0.5 * data_set.data_items.size, 100].max
-
-        ### default values ###
-        data_set.data_items.each{ |item|
-          item[3].default = nil
-          item[4].default = nil
-          item[4][:v_id] ||= []
-          item[4][:skills] ||= []
-          item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
-          item[3][:visits] ||= 1
-        }
-
-        vehicles_infos.each{ |vehicle_info|
-          vehicle_info[:total_work_days] ||= 1
-          vehicle_info[:skills] ||= []
-          vehicle_info[:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
-        }
-
         ### values ###
         @data_set = data_set
         @cut_symbol = cut_symbol
         @unit_symbols = [cut_symbol]
-        @unit_symbols |= @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles_infos.any?{ |c| c[:capacities] }
-        @number_of_clusters = [@vehicles_infos.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
+        @unit_symbols |= @vehicles.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles.any?{ |c| c[:capacities] }
+        @number_of_clusters = [@vehicles.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
-        compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix) if @cut_symbol == :duration
-        @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles_infos, @data_set.data_items, options[:entity])
-        @remaining_skills = @vehicles_infos.dup
-
-        @manage_empty_clusters_iterations = 0
+        ### default values ###
+        @max_iterations ||= [0.5 * @data_set.data_items.size, 100].max
 
         @distance_function ||= lambda do |a, b|
           if @distance_matrix
@@ -101,8 +83,29 @@ module Ai4r
           end
         end
 
+        @data_set.data_items.each{ |item|
+          item[3].default = nil
+          item[4].default = nil
+          item[4][:v_id] ||= []
+          item[4][:skills] ||= []
+          item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+          item[3][:visits] ||= 1
+        }
+
+        @vehicles.each{ |vehicle_info|
+          vehicle_info[:total_work_days] ||= 1
+          vehicle_info[:skills] ||= []
+          vehicle_info[:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+        }
+
+        compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix) if @cut_symbol == :duration
+        @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items, options[:entity])
+        @remaining_skills = @vehicles.dup
+
+        @manage_empty_clusters_iterations = 0
+
         ### algo start ###
-        @iterations = 0
+        @iteration = 0
 
         @i_like_to_move_it_move_it = []
         @moved_up = 0
@@ -123,8 +126,8 @@ module Ai4r
         calc_initial_centroids
 
         @rate_balance = 0.0
-        until stop_criteria_met || @iterations >= @max_iterations
-          @rate_balance = 1.0 - (0.2 * @iterations / @max_iterations) if @cut_symbol
+        until stop_criteria_met || @iteration >= @max_iterations
+          @rate_balance = 1.0 - (0.2 * @iteration / @max_iterations) if @cut_symbol
 
           update_cut_limit
 
@@ -198,7 +201,7 @@ module Ai4r
 
         @old_centroids_lat_lon = @centroids.collect{ |centroid| [centroid[0], centroid[1]] }
 
-        centroid_smoothing_coeff = 0.1 + 0.9 * (@iterations / @max_iterations.to_f)**0.5
+        centroid_smoothing_coeff = 0.1 + 0.9 * (@iteration / @max_iterations.to_f)**0.5
 
         @centroids.each_with_index{ |centroid, index|
           # Smooth the centroid movement (and keeps track of the "history") with the previous centroid (to prevent erratic jumps)
@@ -244,7 +247,7 @@ module Ai4r
 
         swap_centroids_with_capacity_problems
 
-        @iterations += 1
+        @iteration += 1
       end
 
       def swap_centroids_with_capacity_problems
@@ -383,7 +386,7 @@ module Ai4r
         #    index 2 : item_id
         #    index 3 : unit_fullfillment -> for each unit, quantity contained in corresponding cluster
         #    index 4 : characterisits -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
-        raise ArgumentError, 'No vehicles_infos provided' if @remaining_skills.nil?
+        raise ArgumentError, 'No vehicles provided' if @remaining_skills.nil?
 
         case populate_method
         when 'random'
@@ -436,7 +439,7 @@ module Ai4r
 
             skills = @remaining_skills.first.dup
             item = @data_set.data_items[index]
-            raise ArgumentError, 'Centroids indices and vehicles_infos do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
+            raise ArgumentError, 'Centroids indices and vehicles do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
             skills[:matrix_index] = item[4][:matrix_index]
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
@@ -463,7 +466,7 @@ module Ai4r
         else
           # try generating all clusters again
           @clusters, @centroids, @cluster_indices = [], [], []
-          @remaining_skills = @vehicles_infos.dup
+          @remaining_skills = @vehicles.dup
           @number_of_clusters = @centroids.length
         end
         return if self.on_empty == 'eliminate'
@@ -490,7 +493,7 @@ module Ai4r
       end
 
       def stop_criteria_met
-        centroids_converged_or_in_loop(Math.sqrt(@iterations).to_i) && # This check should stay first since it keeps track of the centroid movements..
+        centroids_converged_or_in_loop(Math.sqrt(@iteration).to_i) && # This check should stay first since it keeps track of the centroid movements..
           (@moved_up + @moved_down).zero? # Do not converge if the order of the data items has changed in the last iteration
       end
 
@@ -498,7 +501,7 @@ module Ai4r
 
       def compute_vehicle_work_time_with
         coef = @centroids.map.with_index{ |centroid, index|
-          @vehicles_infos[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles_infos[index][:total_work_days])
+          @vehicles[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles[index][:total_work_days])
         }.min
 
         # TODO: The following filter is there to not to affect the existing functionality.
@@ -512,7 +515,7 @@ module Ai4r
                end
 
         @centroids.map.with_index{ |centroid, index|
-          @vehicles_infos[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles_infos[index][:total_work_days]
+          @vehicles[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
         }
       end
 
@@ -529,7 +532,7 @@ module Ai4r
 
       def centroids_converged_or_in_loop(last_n_iterations)
         # Checks if there is a loop of size last_n_iterations
-        if @iterations.zero?
+        if @iteration.zero?
           # Initialize the array stats array
           @last_n_average_diffs = [0.0] * (2 * last_n_iterations + 1)
           return false

@@ -35,7 +35,7 @@ module Instance
   def self.two_clusters_4_items
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
     clusterer.max_iterations = 300
-    clusterer.vehicles_infos = [
+    clusterer.vehicles = [
       {
         v_id: ['vehicle_0'],
         depot: [45.604784, 4.758965],
@@ -73,7 +73,7 @@ module Instance
       [2349, 668, 1701, 0, 2372],
       [1863, 2865, 1240, 2340, 0]
     ]
-    clusterer.vehicles_infos = [
+    clusterer.vehicles = [
       {
         v_id: ['vehicle_0'],
         depot: [0],
