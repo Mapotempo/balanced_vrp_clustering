@@ -245,34 +245,44 @@ module Ai4r
           end
         }
 
-        swap_centroids_with_capacity_problems
+        swap_a_centroid_with_capacity_problems
 
         @iteration += 1
       end
 
-      def swap_centroids_with_capacity_problems
+      def swap_a_centroid_with_capacity_problems
         @clusters_with_capacity_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
           break if preferred_clusters.empty?
 
-          favorite_cluster = if rand < 0.10
-                               # TODO: elimination/determination of units per cluster should be done at the beginning
-                               # Each centroid should know what matters to them.
-                               the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v}.keys
+          # TODO: elimination/determination of units per cluster should be done at the beginning
+          # Each centroid should know what matters to them.
+          the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v}.keys
 
-                               @centroids.map.with_index.select{ |c, _i|
-                                 the_units_that_matter.all?{ |unit| c[3][unit] < @centroids[violated_cluster][3][unit] }
-                               }.min_by{ |c, i|
-                                 the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[i][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
-                               }[1]
-                             else
-                               preferred_clusters.uniq.sample
-                             end
+          # TODO: only consider the clusters that are "compatible" with this cluster -- i.e., they can serve the points of this cluster and vice-versa
+          favorite_clusters = @centroids.map.with_index.select{ |c, i|
+            the_units_that_matter.all?{ |unit| # cluster to be swapped should
+              c[3][unit] < 0.99 * @strict_limitations[violated_cluster][unit] && # be less loaded
+                @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit] && # have more capacity
+                @clusters[violated_cluster].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[i]) } &&
+                @clusters[i].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[violated_cluster]) }
+            } # and they should be able to serve eachothers's points
+          }
 
-          # puts "swapped #{violated_cluster + 1} with #{favorite_cluster + 1}"
+          if favorite_clusters.empty?
+            # puts "cannot swap #{violated_cluster + 1} because no one can save it"
+            next
+          end
 
-          swap_safe = @centroids[violated_cluster][0..2]
+          favorite_cluster = favorite_clusters.min_by{ |c, i|
+            the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[i][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
+          }[1]
+
+          swap_safe = @centroids[violated_cluster][0..2] # lat lon point_id
           @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
           @centroids[favorite_cluster][0..2] = swap_safe
+
+          # puts "swapped #{violated_cluster + 1} with #{favorite_cluster + 1}"
+          break # swap only one at a time
         }
 
         @clusters_with_capacity_violation.each(&:clear)
