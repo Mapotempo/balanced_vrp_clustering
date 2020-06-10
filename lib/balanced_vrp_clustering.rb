@@ -91,6 +91,7 @@ module Ai4r
           item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
           item[3][:visits] ||= 1
           item[3][:centroid_weights] = {
+            limit: Array.new(@number_of_clusters, 1),
             compatibility: 1
           }
         }
@@ -129,7 +130,7 @@ module Ai4r
         @i_like_to_move_it_move_it = []
         @moved_up = 0
         @moved_down = 0
-        @clusters_with_capacity_violation = Array.new(@number_of_clusters){ [] }
+        @clusters_with_limit_violation = Array.new(@number_of_clusters){ [] }
 
         if @cut_symbol
           @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
@@ -166,7 +167,7 @@ module Ai4r
         self
       end
 
-      def move_capacity_violating_dataitems
+      def move_limit_violating_dataitems
         @needed_moving = @i_like_to_move_it_move_it.size
         mean_distance_diff = @i_like_to_move_it_move_it.collect{ |d| d[1] }.mean
         mean_ratio = @i_like_to_move_it_move_it.collect{ |d| d[2] }.mean
@@ -195,8 +196,8 @@ module Ai4r
           # But the downs are the really problematic ones so moving them would make sense too.
           # Tested some options but it looks alright as it is.. Needs more testing.
 
-          # if the capacity violation leads to more than 2-5 times increase, move it
-          # otherwise, move it with a probability correlated to the detour it generated
+          # if the limt violation leads to more than 2-5 times distance increase, move it
+          # otherwise, move it with a probability correlated to the detour it generates
           if data[2] > [2 * mean_ratio.to_f, 5].min || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
             point = data[0][0..1]
             centroid_with_violation = @centroids[data[3]][0..1]
@@ -204,6 +205,8 @@ module Ai4r
             if Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
               @moved_down += 1
               data[0][3][:moved_down] = true
+              data[0][3][:centroid_weights][:limit].collect!{ |w| [w * 2, [@expected_n_visits / 10, 5].max].min } # TODO: a better mechanism ?
+              data[0][3][:centroid_weights][:limit][data[3]] = 1
               @data_set.data_items.insert(@data_set.data_items.size - 1, @data_set.data_items.delete(data[0]))
             else
               @moved_up += 1
@@ -212,11 +215,11 @@ module Ai4r
             end
           end
         end
-        # puts "#{@needed_moving} \tpoints needs love, #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{@needed_moving - @moved_down - @moved_up} of them untouched \tviolations=#{@clusters_with_capacity_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}"
+        # puts "#{@needed_moving} \tpoints needs love, #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{@needed_moving - @moved_down - @moved_up} of them untouched \tviolations=#{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}"
       end
 
       def recompute_centroids
-        move_capacity_violating_dataitems
+        move_limit_violating_dataitems
 
         @old_centroids_lat_lon = @centroids.collect{ |centroid| [centroid[0], centroid[1]] }
 
@@ -236,7 +239,7 @@ module Ai4r
                                 1
                               end
 
-            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1) * d_i[3][:visits] * d_i[3][:centroid_weights][:compatibility]
+            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1) * d_i[3][:visits] * d_i[3][:centroid_weights][:compatibility] * d_i[3][:centroid_weights][:limit][index]
             d_i[3][:moved_up] = d_i[3][:moved_down] = nil
             total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
           }
@@ -266,13 +269,13 @@ module Ai4r
           end
         }
 
-        swap_a_centroid_with_capacity_problems
+        swap_a_centroid_with_limit_violation
 
         @iteration += 1
       end
 
-      def swap_a_centroid_with_capacity_problems
-        @clusters_with_capacity_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
+      def swap_a_centroid_with_limit_violation
+        @clusters_with_limit_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
           break if preferred_clusters.empty?
 
           # TODO: elimination/determination of units per cluster should be done at the beginning
@@ -283,7 +286,7 @@ module Ai4r
           favorite_clusters = @centroids.map.with_index.select{ |c, i|
             the_units_that_matter.all?{ |unit| # cluster to be swapped should
               c[3][unit] < 0.99 * @strict_limitations[violated_cluster][unit] && # be less loaded
-                @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit] && # have more capacity
+                @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit] && # have more limit
                 @clusters[violated_cluster].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[i]) } &&
                 @clusters[i].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[violated_cluster]) }
             } # and they should be able to serve eachothers's points
@@ -306,7 +309,7 @@ module Ai4r
           break # swap only one at a time
         }
 
-        @clusters_with_capacity_violation.each(&:clear)
+        @clusters_with_limit_violation.each(&:clear)
       end
 
       # Classifies the given data item, returning the cluster index it belongs
@@ -323,19 +326,19 @@ module Ai4r
         closest_cluster_index = get_min_index(distances)
 
         if capactity_violation?(data_item, closest_cluster_index)
-          mininimum_without_capacity_violation = 2**32 # only consider compatible ones
+          mininimum_without_limit_violation = 2**32 # only consider compatible ones
           closest_cluster_wo_violation_index = nil
           @number_of_clusters.times{ |k|
-            next unless distances[k] < mininimum_without_capacity_violation &&
+            next unless distances[k] < mininimum_without_limit_violation &&
                         !capactity_violation?(data_item, k)
 
             closest_cluster_wo_violation_index = k
-            mininimum_without_capacity_violation = distances[k]
+            mininimum_without_limit_violation = distances[k]
           }
           if closest_cluster_wo_violation_index
-            @clusters_with_capacity_violation[closest_cluster_index] << closest_cluster_wo_violation_index
-            mininimum_with_capacity_violation = distances.min
-            @i_like_to_move_it_move_it << [data_item, mininimum_without_capacity_violation - mininimum_with_capacity_violation, mininimum_without_capacity_violation / mininimum_with_capacity_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_capacity_violation]
+            @clusters_with_limit_violation[closest_cluster_index] << closest_cluster_wo_violation_index
+            mininimum_with_limit_violation = distances.min
+            @i_like_to_move_it_move_it << [data_item, mininimum_without_limit_violation - mininimum_with_limit_violation, mininimum_without_limit_violation / mininimum_with_limit_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
             closest_cluster_index = closest_cluster_wo_violation_index
           end
         end
@@ -522,7 +525,7 @@ module Ai4r
 
       def stop_criteria_met
         centroids_converged_or_in_loop(Math.sqrt(@iteration).to_i) && # This check should stay first since it keeps track of the centroid movements..
-          @needed_moving.zero? # Do not converge if there were decision due to capacity violation.
+          @needed_moving.zero? # Do not converge if a decision is taken due to limit violation.
       end
 
       private
