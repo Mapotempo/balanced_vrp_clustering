@@ -90,12 +90,31 @@ module Ai4r
           item[4][:skills] ||= []
           item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
           item[3][:visits] ||= 1
+          item[3][:centroid_weights] = {
+            compatibility: 1
+          }
         }
 
         @vehicles.each{ |vehicle_info|
           vehicle_info[:total_work_days] ||= 1
           vehicle_info[:skills] ||= []
           vehicle_info[:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+        }
+
+        # Initialise the [:centroid_weights][:compatibility] of data_items which need specifique vehicles
+        # These weights are increased if the data_item is not assigned to its closest clusters due to incompatibility
+        compatibility_groups = Hash.new{ [] }
+        @data_set.data_items.group_by{ |d_i| [d_i[4][:v_id], d_i[4][:skills], d_i[4][:days]] }.each{ |_skills, group|
+          compatibility_groups[@vehicles.collect{ |vehicle_info| @compatibility_function.call(group[0], [nil, nil, nil, nil, vehicle_info]) ? 1 : 0 }] += group
+        }
+        @expected_n_visits = @data_set.data_items.sum{ |d_i| d_i[3][:visits] } / @number_of_clusters.to_f
+        compatibility_groups.each{ |compatibility, group|
+          compatible_vehicle_count = compatibility.sum.to_f
+          incompatible_vehicle_count = @number_of_clusters.to_f - compatible_vehicle_count
+
+          compatibility_weight = (@expected_n_visits**((1.0 + Math.log(incompatible_vehicle_count / @number_of_clusters + 0.1)) / (1.0 + Math.log(1.1)))) / [group.size / compatible_vehicle_count, 1.0].max
+
+          group.each{ |d_i| d_i[3][:centroid_weights][:compatibility] = compatibility_weight.ceil }
         }
 
         compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix) if @cut_symbol == :duration
@@ -209,13 +228,15 @@ module Ai4r
           # That's what matters the most (how many times we have to go to a zone an how far this zone is)
           total_weighted_visit_distance = 0
           @clusters[index].data_items.each{ |d_i|
-            d_i[3][:weighted_visit_distance] = if d_i[3][:moved_up]
-                                                 d_i[3][:visits] * 0.1 * Helper.flying_distance(centroid, d_i) + 1e-10
-                                               elsif d_i[3][:moved_down]
-                                                 d_i[3][:visits] * 10 * Helper.flying_distance(centroid, d_i) + 1e-10
-                                               else
-                                                 d_i[3][:visits] * Helper.flying_distance(centroid, d_i) + 1e-10
-                                               end
+            distance_weight = if d_i[3][:moved_up]
+                                0.1
+                              elsif d_i[3][:moved_down]
+                                10
+                              else
+                                1
+                              end
+
+            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1) * d_i[3][:visits] * d_i[3][:centroid_weights][:compatibility]
             d_i[3][:moved_up] = d_i[3][:moved_down] = nil
             total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
           }
