@@ -148,7 +148,7 @@ module Ai4r
       end
 
       def move_capacity_violating_dataitems
-        needs_moving_up = @i_like_to_move_it_move_it.size
+        @needed_moving = @i_like_to_move_it_move_it.size
         mean_distance_diff = @i_like_to_move_it_move_it.collect{ |d| d[1] }.mean
         mean_ratio = @i_like_to_move_it_move_it.collect{ |d| d[2] }.mean
 
@@ -193,7 +193,7 @@ module Ai4r
             end
           end
         end
-        # puts "#{needs_moving_up} \tpoints needs love, #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{needs_moving_up - @moved_down - @moved_up} of them untouched \tviolations=#{@clusters_with_capacity_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}"
+        # puts "#{@needed_moving} \tpoints needs love, #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{@needed_moving - @moved_down - @moved_up} of them untouched \tviolations=#{@clusters_with_capacity_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}"
       end
 
       def recompute_centroids
@@ -491,7 +491,7 @@ module Ai4r
 
       def stop_criteria_met
         centroids_converged_or_in_loop(Math.sqrt(@iteration).to_i) && # This check should stay first since it keeps track of the centroid movements..
-          (@moved_up + @moved_down).zero? # Do not converge if the order of the data items has changed in the last iteration
+          @needed_moving.zero? # Do not converge if there were decision due to capacity violation.
       end
 
       private
