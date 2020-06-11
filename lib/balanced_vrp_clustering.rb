@@ -391,7 +391,7 @@ module Ai4r
         case populate_method
         when 'random'
           while @centroids.length < number_of_clusters
-            skills = @remaining_skills.first.dup
+            skills = @remaining_skills.shift
 
             # Find the items which are not already used, and specifically need the skill set of this cluster
             compatible_items = @data_set.data_items.select{ |item|
@@ -424,8 +424,6 @@ module Ai4r
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
-            @remaining_skills&.delete_at(0)
-
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
           end
         when 'indices' # for initial assignment only (with the :centroid_indices option)
@@ -437,7 +435,7 @@ module Ai4r
           @centroid_indices.each do |index|
             raise ArgumentError, 'Invalid centroid index' unless (index.is_a? Integer) && index >= 0 && index < @data_set.data_items.length
 
-            skills = @remaining_skills.first.dup
+            skills = @remaining_skills.shift
             item = @data_set.data_items[index]
             raise ArgumentError, 'Centroids indices and vehicles do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
@@ -445,7 +443,6 @@ module Ai4r
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
-            @remaining_skills&.delete_at(0)
             insert_at_begining << item
           end
 
