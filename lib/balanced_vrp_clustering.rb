@@ -52,9 +52,26 @@ module Ai4r
         # DEPRECATED variables (to be removed before public release)
         @vehicles ||= @vehicles_infos # (DEPRECATED)
 
-        ### return clean errors if unconsistent data ###
+        ### return clean errors if inconsistent data ###
+        if distance_matrix
+          if @vehicles.any?{ |v_i| v_i[:depot].size != 1 } ||
+             data_set.data_items.any?{ |item| !item[4][:matrix_index] }
+            raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
+          end
+        elsif @vehicles.any?{ |v_i| v_i[:depot].compact.size != 2 }
+          raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all vehicles'
+        end
+
+        if data_set.data_items.any?{ |item| !(item[0] && item[1]) }
+          raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all items'
+        end
+
+        if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) }
+          raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
+        end
+
         if cut_symbol && data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
-          raise ArgumentError, 'Cut symbol corresponding unit should be provided for all item'
+          raise ArgumentError, 'The unit corresponding to the cut symbol should be provided for all items'
         end
 
         ### values ###
