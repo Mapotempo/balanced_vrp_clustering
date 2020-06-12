@@ -132,6 +132,8 @@ module Ai4r
         @moved_down = 0
         @clusters_with_limit_violation = Array.new(@number_of_clusters){ [] }
 
+        @limit_violation_coefficient = Array.new(@number_of_clusters, 1)
+
         if @cut_symbol
           @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
           if @total_cut_load.zero?
@@ -294,6 +296,7 @@ module Ai4r
 
           if favorite_clusters.empty?
             # puts "cannot swap #{violated_cluster + 1} because no one can save it"
+            @limit_violation_coefficient.collect!.with_index{ |c, i| (i == violated_cluster) ? c : c * 0.98 } # update_limit_violation_coefficient
             next
           end
 
@@ -316,7 +319,7 @@ module Ai4r
       # to (0-based).
       def evaluate(data_item)
         distances = @centroids.collect.with_index{ |centroid, cluster_index|
-          dist = distance(data_item, centroid, cluster_index)
+          dist = distance(data_item, centroid, cluster_index) * @limit_violation_coefficient[cluster_index]
 
           dist += 2**32 unless @compatibility_function.call(data_item, centroid)
 
