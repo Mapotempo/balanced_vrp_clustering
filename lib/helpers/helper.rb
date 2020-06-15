@@ -17,12 +17,35 @@
 #
 
 module Helper
+  R = 6378137 # Earth's radius in meters
+
   def self.fixnum_max
     (2**(0.size * 8 - 2) - 1)
   end
 
   def self.fixnum_min
     -(2**(0.size * 8 - 2))
+  end
+
+  def self.deg2rad(input)
+    # Converts degrees to radians
+    input * Math::PI / 180.0
+  end
+
+  def self.approximate_polygone_area(coordinates)
+    # A rudimentary way to calculate area from coordinates.
+    # When the shape is vaguely convex, it gives okay results.
+    # https://stackoverflow.com/a/32912727/1200528
+    return 0.0 unless coordinates.size > 2
+
+    area = 0.0
+    coor_p = coordinates.first
+    coordinates[1..-1].each{ |coor|
+      area += deg2rad(coor[1] - coor_p[1]) * (2 + Math.sin(deg2rad(coor_p[0])) + Math.sin(deg2rad(coor[0])))
+      coor_p = coor
+    }
+
+    (area * R * R / 2.0).abs
   end
 
   def self.flying_distance(loc_a, loc_b)
@@ -36,25 +59,24 @@ module Helper
       return euclidean_distance(loc_a, loc_b)
     end
 
-    r = 6378137 # Earth's radius in meters
-    deg2rad_lat_a = loc_a[0] * Math::PI / 180
-    deg2rad_lat_b = loc_b[0] * Math::PI / 180
-    deg2rad_lon_a = loc_a[1] * Math::PI / 180
-    deg2rad_lon_b = loc_b[1] * Math::PI / 180
+    deg2rad_lat_a = deg2rad(loc_a[0])
+    deg2rad_lat_b = deg2rad(loc_b[0])
+    deg2rad_lon_a = deg2rad(loc_a[1])
+    deg2rad_lon_b = deg2rad(loc_b[1])
     lat_distance = deg2rad_lat_b - deg2rad_lat_a
     lon_distance = deg2rad_lon_b - deg2rad_lon_a
 
     intermediate = Math.sin(lat_distance / 2) * Math.sin(lat_distance / 2) + Math.cos(deg2rad_lat_a) * Math.cos(deg2rad_lat_b) *
                    Math.sin(lon_distance / 2) * Math.sin(lon_distance / 2)
 
-    r * 2 * Math.atan2(Math.sqrt(intermediate), Math.sqrt(1 - intermediate))
+    R * 2 * Math.atan2(Math.sqrt(intermediate), Math.sqrt(1 - intermediate))
   end
 
   def self.euclidean_distance(loc_a, loc_b)
     return 0.0 unless loc_a[0] && loc_b[0]
 
     delta_lat = loc_a[0] - loc_b[0]
-    delta_lon = (loc_a[1] - loc_b[1]) * Math.cos((loc_a[0] + loc_b[0]) * Math::PI / 360.0) # Correct the length of a lon difference with cosine of avereage latitude
+    delta_lon = (loc_a[1] - loc_b[1]) * Math.cos(deg2rad((loc_a[0] + loc_b[0]) / 2.0)) # Correct the length of a lon difference with cosine of avereage latitude
 
     111321 * Math.sqrt(delta_lat**2 + delta_lon**2) # 111321 is the length of a degree (of lon and lat) in meters
   end
