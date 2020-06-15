@@ -34,6 +34,7 @@ module Ai4r
       parameters_info vehicles: 'Attributes of each cluster to generate. If centroid_indices are provided
                       then vehicles should be ordered according to centroid_indices order',
                       vehicles_infos: '(DEPRECATED) Use vehicles',
+                      logger: 'The logger to write the output. All written to logger.debug at the moment.',
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
                       compatibility_function: 'Custom implementation of a compatibility_function.'\
                         'It must be a closure receiving a data item and a centroid and return a '\
@@ -234,7 +235,9 @@ module Ai4r
             end
           end
         end
-        # puts "#{@needed_moving} \tpoints needs love, #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{@needed_moving - @moved_down - @moved_up} of them untouched \tviolations=#{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}"
+        @logger&.debug "Decisions taken due to capacity violation for #{@needed_moving} items: #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{@needed_moving - @moved_down - @moved_up} of them untouched"
+        @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
+        @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
       end
 
       def recompute_centroids
@@ -312,7 +315,7 @@ module Ai4r
           }
 
           if favorite_clusters.empty?
-            # puts "cannot swap #{violated_cluster + 1} because no one can save it"
+            @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, decreasing its limit_violation_coefficient"
             @limit_violation_coefficient.collect!.with_index{ |c, i| (i == violated_cluster) ? c : c * 0.98 } # update_limit_violation_coefficient
             next
           end
@@ -325,7 +328,7 @@ module Ai4r
           @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
           @centroids[favorite_cluster][0..2] = swap_safe
 
-          # puts "swapped #{violated_cluster + 1} with #{favorite_cluster + 1}"
+          @logger&.debug "swapped location of #{violated_cluster + 1}th cluster with #{favorite_cluster + 1}th cluster"
           break # swap only one at a time
         }
 
@@ -594,6 +597,8 @@ module Ai4r
         @number_of_clusters.times { |i|
           total_movement_meter += Helper.euclidean_distance(@old_centroids_lat_lon[i], @centroids[i])
         }
+
+        @logger&.debug "Iteration #{@iteration}: total centroid movement #{total_movement_meter} eucledian meters"
 
         # If convereged, we can stop
         return true if total_movement_meter < @number_of_clusters * 10
