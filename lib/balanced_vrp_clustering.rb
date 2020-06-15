@@ -132,6 +132,8 @@ module Ai4r
 
           calculate_membership_clusters
         end
+
+        self
       end
 
       def recompute_centroids
