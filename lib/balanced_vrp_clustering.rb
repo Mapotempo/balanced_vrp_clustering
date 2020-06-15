@@ -127,7 +127,7 @@ module Ai4r
         ### algo start ###
         @iteration = 0
 
-        @i_like_to_move_it_move_it = []
+        @items_with_limit_violation = []
         @moved_up = 0
         @moved_down = 0
         @clusters_with_limit_violation = Array.new(@number_of_clusters){ [] }
@@ -170,9 +170,9 @@ module Ai4r
       end
 
       def move_limit_violating_dataitems
-        @needed_moving = @i_like_to_move_it_move_it.size
-        mean_distance_diff = @i_like_to_move_it_move_it.collect{ |d| d[1] }.mean
-        mean_ratio = @i_like_to_move_it_move_it.collect{ |d| d[2] }.mean
+        @needed_moving = @items_with_limit_violation.size
+        mean_distance_diff = @items_with_limit_violation.collect{ |d| d[1] }.mean
+        mean_ratio = @items_with_limit_violation.collect{ |d| d[2] }.mean
 
         @moved_down = 0
         @moved_up = 0
@@ -182,16 +182,16 @@ module Ai4r
         # We need the most distant ones to closer to the top so that the cluster can move to that direction next iteration
         # but a random order might work better for the down ones since they are in the middle and the border is not a straight line
         # nothing vanilla order 9/34
-        # @i_like_to_move_it_move_it.shuffle!  7/34 not much of help. it increases normal iteration count but decreases the loop time
-        # @i_like_to_move_it_move_it.sort_by!{ |i| i[5] } 6/34 fails .. good
-        # @i_like_to_move_it_move_it.sort_by!{ |i| -i[5] } 5/34 fails .. better
+        # @items_with_limit_violation.shuffle!  7/34 not much of help. it increases normal iteration count but decreases the loop time
+        # @items_with_limit_violation.sort_by!{ |i| i[5] } 6/34 fails .. good
+        # @items_with_limit_violation.sort_by!{ |i| -i[5] } 5/34 fails .. better
         # 0.33sort+ and 0.66sort-  #8/21 fails ... bad
         # 0.33shuffle and 0.66sort- #7/20 fails ... bad
 
-        @i_like_to_move_it_move_it.sort_by!{ |i| -i[5] }
+        @items_with_limit_violation.sort_by!{ |i| -i[5] }
 
-        until @i_like_to_move_it_move_it.empty? do
-          data = @i_like_to_move_it_move_it.pop
+        until @items_with_limit_violation.empty? do
+          data = @items_with_limit_violation.pop
 
           # TODO: check the effectiveness of the following stochastic condition.
           # Specifically, moving the "up" ones always would be better...?
@@ -341,7 +341,7 @@ module Ai4r
           if closest_cluster_wo_violation_index
             @clusters_with_limit_violation[closest_cluster_index] << closest_cluster_wo_violation_index
             mininimum_with_limit_violation = distances.min
-            @i_like_to_move_it_move_it << [data_item, mininimum_without_limit_violation - mininimum_with_limit_violation, mininimum_without_limit_violation / mininimum_with_limit_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
+            @items_with_limit_violation << [data_item, mininimum_without_limit_violation - mininimum_with_limit_violation, mininimum_without_limit_violation / mininimum_with_limit_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
             closest_cluster_index = closest_cluster_wo_violation_index
           end
         end
