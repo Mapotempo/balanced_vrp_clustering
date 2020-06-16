@@ -52,6 +52,11 @@ module Ai4r
         #    index 3 : unit_quantities -> for each unit, quantity associated to this item
         #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
 
+        # First of all, set and display the seed
+        options[:seed] ||= Random.new_seed
+        @logger&.debug "Clustering with seed=#{options[:seed]}"
+        srand options[:seed]
+
         # DEPRECATED variables (to be removed before public release)
         @vehicles ||= @vehicles_infos # (DEPRECATED)
 
