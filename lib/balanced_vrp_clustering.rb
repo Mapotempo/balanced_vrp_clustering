@@ -146,8 +146,6 @@ module Ai4r
         @iteration = 0
 
         @items_with_limit_violation = []
-        @moved_up = 0
-        @moved_down = 0
         @clusters_with_limit_violation = Array.new(@number_of_clusters){ [] }
 
         @limit_violation_coefficient = Array.new(@number_of_clusters, 1)
@@ -188,12 +186,12 @@ module Ai4r
       end
 
       def move_limit_violating_dataitems
-        @needed_moving = @items_with_limit_violation.size
+        @limit_violation_count = @items_with_limit_violation.size
         mean_distance_diff = @items_with_limit_violation.collect{ |d| d[1] }.mean
         mean_ratio = @items_with_limit_violation.collect{ |d| d[2] }.mean
 
-        @moved_down = 0
-        @moved_up = 0
+        moved_down = 0
+        moved_up = 0
 
         # TODO: check if any other type of ordering might help
         # Since the last one that is moved up will appear at the very top and vice-versa for the down.
@@ -223,19 +221,19 @@ module Ai4r
             centroid_with_violation = @centroids[data[3]][0..1]
             centroid_witout_violation = @centroids[data[4]][0..1]
             if Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
-              @moved_down += 1
+              moved_down += 1
               data[0][3][:moved_down] = true
               data[0][3][:centroid_weights][:limit].collect!{ |w| [w * 2, [@expected_n_visits / 10, 5].max].min } # TODO: a better mechanism ?
               data[0][3][:centroid_weights][:limit][data[3]] = 1
               @data_set.data_items.insert(@data_set.data_items.size - 1, @data_set.data_items.delete(data[0]))
             else
-              @moved_up += 1
+              moved_up += 1
               data[0][3][:moved_up] = true
               @data_set.data_items.insert(0, @data_set.data_items.delete(data[0]))
             end
           end
         end
-        @logger&.debug "Decisions taken due to capacity violation for #{@needed_moving} items: #{@moved_down} of them moved_down, #{@moved_up} of them moved_up, #{@needed_moving - @moved_down - @moved_up} of them untouched"
+        @logger&.debug "Decisions taken due to capacity violation for #{@limit_violation_count} items: #{moved_down} of them moved_down, #{moved_up} of them moved_up, #{@limit_violation_count - moved_down - moved_up} of them untouched"
         @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
         @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
       end
@@ -548,7 +546,7 @@ module Ai4r
 
       def stop_criteria_met
         centroids_converged_or_in_loop(Math.sqrt(@iteration).to_i) && # This check should stay first since it keeps track of the centroid movements..
-          @needed_moving.zero? # Do not converge if a decision is taken due to limit violation.
+          @limit_violation_count.zero? # Do not converge if a decision is taken due to limit violation.
       end
 
       private
