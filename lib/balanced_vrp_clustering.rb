@@ -31,13 +31,14 @@ module Ai4r
       attr_reader :iterations
       attr_reader :cut_limit
 
-      parameters_info vehicles_infos: 'Attributes of each cluster to generate. If centroid_indices are provided
-                      then vehicles_infos should be ordered according to centroid_indices order',
+      parameters_info vehicles: 'Attributes of each cluster to generate. If centroid_indices are provided
+                      then vehicles should be ordered according to centroid_indices order',
+                      vehicles_infos: '(DEPRECATED) Use vehicles',
+                      logger: 'The logger to write the output. All written to logger.debug at the moment.',
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
                       compatibility_function: 'Custom implementation of a compatibility_function.'\
                         'It must be a closure receiving a data item and a centroid and return a '\
-                        'boolean (true: if compatible and false: if incompatible). '\
-                        'By default, this implementation uses a function which always returns true.'
+                        'boolean (true: if compatible and false: if incompatible).'
 
       def build(data_set, cut_symbol, cut_ratio = 1.0, options = {})
         # Build a new clusterer, using data items found in data_set.
@@ -49,37 +50,40 @@ module Ai4r
         #    index 3 : unit_quantities -> for each unit, quantity associated to this item
         #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
 
-        ### return clean errors if unconsistent data ###
-        if cut_symbol && data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
-          raise ArgumentError, 'Cut symbol corresponding unit should be provided for all item'
+        # DEPRECATED variables (to be removed before public release)
+        @vehicles ||= @vehicles_infos # (DEPRECATED)
+
+        ### return clean errors if inconsistent data ###
+        if distance_matrix
+          if @vehicles.any?{ |v_i| v_i[:depot].size != 1 } ||
+             data_set.data_items.any?{ |item| !item[4][:matrix_index] }
+            raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
+          end
+        elsif @vehicles.any?{ |v_i| v_i[:depot].compact.size != 2 }
+          raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all vehicles'
         end
 
-        raise ArgumentError, 'Should provide max_iterations' if @max_iterations.nil?
+        if data_set.data_items.any?{ |item| !(item[0] && item[1]) }
+          raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all items'
+        end
 
-        ### default values ###
-        data_set.data_items.each{ |item|
-          item[4][:v_id] ||= []
-          item[4][:skills] ||= []
-          item[4][:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
-        }
+        if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) }
+          raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
+        end
 
-        vehicles_infos.each{ |vehicle_info|
-          vehicle_info[:total_work_days] ||= 1
-          vehicle_info[:skills] ||= []
-          vehicle_info[:days] ||= ['0_day_skill', '1_day_skill', '2_day_skill', '3_day_skill', '4_day_skill', '5_day_skill', '6_day_skill']
-        }
+        if cut_symbol && data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
+          raise ArgumentError, 'The unit corresponding to the cut symbol should be provided for all items'
+        end
 
+        ### values ###
         @data_set = data_set
         @cut_symbol = cut_symbol
         @unit_symbols = [cut_symbol]
-        @unit_symbols |= @vehicles_infos.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles_infos.any?{ |c| c[:capacities] }
-        @number_of_clusters = [@vehicles_infos.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
+        @unit_symbols |= @vehicles.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles.any?{ |c| c[:capacities] }
+        @number_of_clusters = [@vehicles.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
-        compute_distance_from_and_to_depot(@vehicles_infos, @data_set, distance_matrix) if @cut_symbol == :duration
-        @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles_infos, @data_set.data_items, options[:entity])
-        @remaining_skills = @vehicles_infos.dup
-
-        @manage_empty_clusters_iterations = 0
+        ### default values ###
+        @max_iterations ||= [0.5 * @data_set.data_items.size, 100].max
 
         @distance_function ||= lambda do |a, b|
           if @distance_matrix
@@ -97,14 +101,61 @@ module Ai4r
           end
         end
 
-        @iterations = 0
+        @data_set.data_items.each{ |item|
+          item[3].default = nil
+          item[4].default = nil
+          item[4][:v_id] ||= []
+          item[4][:skills] ||= []
+          item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+          item[3][:visits] ||= 1
+          item[3][:centroid_weights] = {
+            limit: Array.new(@number_of_clusters, 1),
+            compatibility: 1
+          }
+        }
+
+        @vehicles.each{ |vehicle_info|
+          vehicle_info[:total_work_days] ||= 1
+          vehicle_info[:skills] ||= []
+          vehicle_info[:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+        }
+
+        # Initialise the [:centroid_weights][:compatibility] of data_items which need specifique vehicles
+        # These weights are increased if the data_item is not assigned to its closest clusters due to incompatibility
+        compatibility_groups = Hash.new{ [] }
+        @data_set.data_items.group_by{ |d_i| [d_i[4][:v_id], d_i[4][:skills], d_i[4][:days]] }.each{ |_skills, group|
+          compatibility_groups[@vehicles.collect{ |vehicle_info| @compatibility_function.call(group[0], [nil, nil, nil, nil, vehicle_info]) ? 1 : 0 }] += group
+        }
+        @expected_n_visits = @data_set.data_items.sum{ |d_i| d_i[3][:visits] } / @number_of_clusters.to_f
+        compatibility_groups.each{ |compatibility, group|
+          compatible_vehicle_count = compatibility.sum.to_f
+          incompatible_vehicle_count = @number_of_clusters.to_f - compatible_vehicle_count
+
+          compatibility_weight = (@expected_n_visits**((1.0 + Math.log(incompatible_vehicle_count / @number_of_clusters + 0.1)) / (1.0 + Math.log(1.1)))) / [group.size / compatible_vehicle_count, 1.0].max
+
+          group.each{ |d_i| d_i[3][:centroid_weights][:compatibility] = compatibility_weight.ceil }
+        }
+
+        compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix) if @cut_symbol == :duration
+        @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items, options[:entity])
+        @remaining_skills = @vehicles.dup
+
+        @manage_empty_clusters_iterations = 0
+
+        ### algo start ###
+        @iteration = 0
+
+        @items_with_limit_violation = []
+        @clusters_with_limit_violation = Array.new(@number_of_clusters){ [] }
+
+        @limit_violation_coefficient = Array.new(@number_of_clusters, 1)
 
         if @cut_symbol
-          @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + (d[3][@cut_symbol] || 0) }
+          @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
           if @total_cut_load.zero?
             @cut_symbol = nil # Disable balancing because there is no point
           else
-            @data_set.data_items.sort_by!{ |x| x[3][@cut_symbol] ? -x[3][@cut_symbol] : 0 }
+            @data_set.data_items.sort_by! { |x| -x[3][@cut_symbol].to_f }
             data_length = @data_set.data_items.size
             @data_set.data_items[(data_length * 0.1).to_i..(data_length * 0.90).to_i] = @data_set.data_items[(data_length * 0.1).to_i..(data_length * 0.90).to_i].shuffle!
           end
@@ -113,8 +164,8 @@ module Ai4r
         calc_initial_centroids
 
         @rate_balance = 0.0
-        until stop_criteria_met
-          @rate_balance = 1.0 - (0.2 * @iterations / @max_iterations) if @cut_symbol
+        until stop_criteria_met || @iteration >= @max_iterations
+          @rate_balance = 1.0 - (0.2 * @iteration / @max_iterations) if @cut_symbol
 
           update_cut_limit
 
@@ -134,15 +185,96 @@ module Ai4r
         self
       end
 
+      def move_limit_violating_dataitems
+        @limit_violation_count = @items_with_limit_violation.size
+        mean_distance_diff = @items_with_limit_violation.collect{ |d| d[1] }.mean
+        mean_ratio = @items_with_limit_violation.collect{ |d| d[2] }.mean
+
+        moved_down = 0
+        moved_up = 0
+
+        # TODO: check if any other type of ordering might help
+        # Since the last one that is moved up will appear at the very top and vice-versa for the down.
+        # We need the most distant ones to closer to the top so that the cluster can move to that direction next iteration
+        # but a random order might work better for the down ones since they are in the middle and the border is not a straight line
+        # nothing vanilla order 9/34
+        # @items_with_limit_violation.shuffle!  7/34 not much of help. it increases normal iteration count but decreases the loop time
+        # @items_with_limit_violation.sort_by!{ |i| i[5] } 6/34 fails .. good
+        # @items_with_limit_violation.sort_by!{ |i| -i[5] } 5/34 fails .. better
+        # 0.33sort+ and 0.66sort-  #8/21 fails ... bad
+        # 0.33shuffle and 0.66sort- #7/20 fails ... bad
+
+        @items_with_limit_violation.sort_by!{ |i| -i[5] }
+
+        until @items_with_limit_violation.empty? do
+          data = @items_with_limit_violation.pop
+
+          # TODO: check the effectiveness of the following stochastic condition.
+          # Specifically, moving the "up" ones always would be better...?
+          # But the downs are the really problematic ones so moving them would make sense too.
+          # Tested some options but it looks alright as it is.. Needs more testing.
+
+          # if the limt violation leads to more than 2-5 times distance increase, move it
+          # otherwise, move it with a probability correlated to the detour it generates
+          if data[2] > [2 * mean_ratio.to_f, 5].min || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
+            point = data[0][0..1]
+            centroid_with_violation = @centroids[data[3]][0..1]
+            centroid_witout_violation = @centroids[data[4]][0..1]
+            if Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
+              moved_down += 1
+              data[0][3][:moved_down] = true
+              data[0][3][:centroid_weights][:limit].collect!{ |w| [w * 2, [@expected_n_visits / 10, 5].max].min } # TODO: a better mechanism ?
+              data[0][3][:centroid_weights][:limit][data[3]] = 1
+              @data_set.data_items.insert(@data_set.data_items.size - 1, @data_set.data_items.delete(data[0]))
+            else
+              moved_up += 1
+              data[0][3][:moved_up] = true
+              @data_set.data_items.insert(0, @data_set.data_items.delete(data[0]))
+            end
+          end
+        end
+        @logger&.debug "Decisions taken due to capacity violation for #{@limit_violation_count} items: #{moved_down} of them moved_down, #{moved_up} of them moved_up, #{@limit_violation_count - moved_down - moved_up} of them untouched"
+        @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
+        @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
+      end
+
       def recompute_centroids
+        move_limit_violating_dataitems
+
         @old_centroids_lat_lon = @centroids.collect{ |centroid| [centroid[0], centroid[1]] }
 
+        centroid_smoothing_coeff = 0.1 + 0.9 * (@iteration / @max_iterations.to_f)**0.5
+
         @centroids.each_with_index{ |centroid, index|
-          centroid[0] = Statistics.mean(@clusters[index], 0)
-          centroid[1] = Statistics.mean(@clusters[index], 1)
+          # Smooth the centroid movement (and keeps track of the "history") with the previous centroid (to prevent erratic jumps)
+          # Calculates the new centroid with weighted mean (using the number of visits and distance to current centroid as a weight)
+          # That's what matters the most (how many times we have to go to a zone an how far this zone is)
+          total_weighted_visit_distance = 0
+          @clusters[index].data_items.each{ |d_i|
+            distance_weight = if d_i[3][:moved_up]
+                                0.1
+                              elsif d_i[3][:moved_down]
+                                10
+                              else
+                                1
+                              end
 
-          point_closest_to_centroid_center = clusters[index].data_items.min_by{ |data_point| Helper.flying_distance(centroid, data_point) }
+            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1) * d_i[3][:visits] * d_i[3][:centroid_weights][:compatibility] * d_i[3][:centroid_weights][:limit][index]
+            d_i[3][:moved_up] = d_i[3][:moved_down] = nil
+            total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
+          }
+          centroid[0] = centroid_smoothing_coeff * centroid[0] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[0] * d_i[3][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
+          centroid[1] = centroid_smoothing_coeff * centroid[1] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[1] * d_i[3][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
 
+          # A selector which selects closest point to represent the centroid which is the most "representative" in terms of distace to the
+          point_closest_to_centroid_center = clusters[index].data_items.min_by([[(@clusters[index].data_items.size / 10.0).ceil, 5].min, 2].max){ |data_point|
+            Helper.flying_distance(centroid, data_point)
+          }.min_by{ |data_point|
+            clusters[index].data_items.sum{ |d_i| @distance_function.call(data_point, d_i) * d_i[3][:visits] } # / total_visits_in_cluster.to_f
+          }
+
+          # register the id and matrix_index of the point representing the centroid
+          centroid[2] = point_closest_to_centroid_center[2].dup # id TODO: Check if dup necessary ?
           # correct the matrix_index of the centroid with the index of the point_closest_to_centroid_center
           centroid[4][:matrix_index] = point_closest_to_centroid_center[4][:matrix_index] if centroid[4][:matrix_index]
 
@@ -153,29 +285,86 @@ module Ai4r
 
           # correct the distance_from_and_to_depot info of the new cluster with the average of the points
           if centroid[4][:duration_from_and_to_depot]
-            centroid[4][:duration_from_and_to_depot][index] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f
+            centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot] }.reduce(&:+) / @clusters[index].data_items.size.to_f
           end
         }
 
-        @iterations += 1
+        swap_a_centroid_with_limit_violation
+
+        @iteration += 1
+      end
+
+      def swap_a_centroid_with_limit_violation
+        @clusters_with_limit_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
+          break if preferred_clusters.empty?
+
+          # TODO: elimination/determination of units per cluster should be done at the beginning
+          # Each centroid should know what matters to them.
+          the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v}.keys
+
+          # TODO: only consider the clusters that are "compatible" with this cluster -- i.e., they can serve the points of this cluster and vice-versa
+          favorite_clusters = @centroids.map.with_index.select{ |c, i|
+            the_units_that_matter.all?{ |unit| # cluster to be swapped should
+              c[3][unit] < 0.99 * @strict_limitations[violated_cluster][unit] && # be less loaded
+                @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit] && # have more limit
+                @clusters[violated_cluster].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[i]) } &&
+                @clusters[i].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[violated_cluster]) }
+            } # and they should be able to serve eachothers's points
+          }
+
+          if favorite_clusters.empty?
+            @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, decreasing its limit_violation_coefficient"
+            @limit_violation_coefficient.collect!.with_index{ |c, i| (i == violated_cluster) ? c : c * 0.98 } # update_limit_violation_coefficient
+            next
+          end
+
+          favorite_cluster = favorite_clusters.min_by{ |c, i|
+            the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[i][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
+          }[1]
+
+          swap_safe = @centroids[violated_cluster][0..2] # lat lon point_id
+          @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
+          @centroids[favorite_cluster][0..2] = swap_safe
+
+          @logger&.debug "swapped location of #{violated_cluster + 1}th cluster with #{favorite_cluster + 1}th cluster"
+          break # swap only one at a time
+        }
+
+        @clusters_with_limit_violation.each(&:clear)
       end
 
       # Classifies the given data item, returning the cluster index it belongs
       # to (0-based).
       def evaluate(data_item)
-        get_min_index(@centroids.collect.with_index{ |centroid, cluster_index|
-          dist = distance(data_item, centroid, cluster_index)
+        distances = @centroids.collect.with_index{ |centroid, cluster_index|
+          dist = distance(data_item, centroid, cluster_index) * @limit_violation_coefficient[cluster_index]
 
-          unless @compatibility_function.call(data_item, centroid)
-            dist += 2**32
-          end
-
-          if capactity_violation?(data_item, cluster_index)
-            dist += 2**16
-          end
+          dist += 2**32 unless @compatibility_function.call(data_item, centroid)
 
           dist
-        })
+        }
+
+        closest_cluster_index = get_min_index(distances)
+
+        if capactity_violation?(data_item, closest_cluster_index)
+          mininimum_without_limit_violation = 2**32 # only consider compatible ones
+          closest_cluster_wo_violation_index = nil
+          @number_of_clusters.times{ |k|
+            next unless distances[k] < mininimum_without_limit_violation &&
+                        !capactity_violation?(data_item, k)
+
+            closest_cluster_wo_violation_index = k
+            mininimum_without_limit_violation = distances[k]
+          }
+          if closest_cluster_wo_violation_index
+            @clusters_with_limit_violation[closest_cluster_index] << closest_cluster_wo_violation_index
+            mininimum_with_limit_violation = distances.min
+            @items_with_limit_violation << [data_item, mininimum_without_limit_violation - mininimum_with_limit_violation, mininimum_without_limit_violation / mininimum_with_limit_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
+            closest_cluster_index = closest_cluster_wo_violation_index
+          end
+        end
+
+        closest_cluster_index
       end
 
       protected
@@ -187,10 +376,10 @@ module Ai4r
 
         cut_value = @centroids[cluster_index][3][@cut_symbol].to_f
         limit = if @cut_limit.is_a? Array
-          @cut_limit[cluster_index][:limit]
-        else
-          @cut_limit[:limit]
-        end
+                  @cut_limit[cluster_index][:limit]
+                else
+                  @cut_limit[:limit]
+                end
 
         # balance between clusters computation
         balance = 1.0
@@ -252,12 +441,12 @@ module Ai4r
         #    index 2 : item_id
         #    index 3 : unit_fullfillment -> for each unit, quantity contained in corresponding cluster
         #    index 4 : characterisits -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
-        raise ArgumentError, 'No vehicles_infos provided' if @remaining_skills.nil?
+        raise ArgumentError, 'No vehicles provided' if @remaining_skills.nil?
 
         case populate_method
         when 'random'
           while @centroids.length < number_of_clusters
-            skills = @remaining_skills.first.dup
+            skills = @remaining_skills.shift
 
             # Find the items which are not already used, and specifically need the skill set of this cluster
             compatible_items = @data_set.data_items.select{ |item|
@@ -290,8 +479,6 @@ module Ai4r
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
-            @remaining_skills&.delete_at(0)
-
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
           end
         when 'indices' # for initial assignment only (with the :centroid_indices option)
@@ -303,15 +490,14 @@ module Ai4r
           @centroid_indices.each do |index|
             raise ArgumentError, 'Invalid centroid index' unless (index.is_a? Integer) && index >= 0 && index < @data_set.data_items.length
 
-            skills = @remaining_skills.first.dup
+            skills = @remaining_skills.shift
             item = @data_set.data_items[index]
-            raise ArgumentError, 'Centroids indices and vehicles_infos do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
+            raise ArgumentError, 'Centroids indices and vehicles do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
             skills[:matrix_index] = item[4][:matrix_index]
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
-            @remaining_skills&.delete_at(0)
             insert_at_begining << item
           end
 
@@ -332,7 +518,7 @@ module Ai4r
         else
           # try generating all clusters again
           @clusters, @centroids, @cluster_indices = [], [], []
-          @remaining_skills = @vehicles_infos.dup
+          @remaining_skills = @vehicles.dup
           @number_of_clusters = @centroids.length
         end
         return if self.on_empty == 'eliminate'
@@ -359,16 +545,15 @@ module Ai4r
       end
 
       def stop_criteria_met
-        @old_centroids_lat_lon == @centroids.collect{ |c| [c[0], c[1]] } ||
-          same_centroid_distance_moving_average(Math.sqrt(@iterations).to_i) || # Check if there is a loop of size Math.sqrt(@iterations)
-          (@max_iterations && (@max_iterations <= @iterations))
+        centroids_converged_or_in_loop(Math.sqrt(@iteration).to_i) && # This check should stay first since it keeps track of the centroid movements..
+          @limit_violation_count.zero? # Do not converge if a decision is taken due to limit violation.
       end
 
       private
 
       def compute_vehicle_work_time_with
         coef = @centroids.map.with_index{ |centroid, index|
-          @vehicles_infos[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot][index], 1].max * @vehicles_infos[index][:total_work_days])
+          @vehicles[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles[index][:total_work_days])
         }.min
 
         # TODO: The following filter is there to not to affect the existing functionality.
@@ -382,7 +567,7 @@ module Ai4r
                end
 
         @centroids.map.with_index{ |centroid, index|
-          @vehicles_infos[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot][index] * @vehicles_infos[index][:total_work_days]
+          @vehicles[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
         }
       end
 
@@ -397,8 +582,9 @@ module Ai4r
         }
       end
 
-      def same_centroid_distance_moving_average(last_n_iterations)
-        if @iterations.zero?
+      def centroids_converged_or_in_loop(last_n_iterations)
+        # Checks if there is a loop of size last_n_iterations
+        if @iteration.zero?
           # Initialize the array stats array
           @last_n_average_diffs = [0.0] * (2 * last_n_iterations + 1)
           return false
@@ -410,8 +596,10 @@ module Ai4r
           total_movement_meter += Helper.euclidean_distance(@old_centroids_lat_lon[i], @centroids[i])
         }
 
+        @logger&.debug "Iteration #{@iteration}: total centroid movement #{total_movement_meter} eucledian meters"
+
         # If convereged, we can stop
-        return true if total_movement_meter.to_f < 1
+        return true if total_movement_meter < @number_of_clusters * 10
 
         @last_n_average_diffs.push total_movement_meter.to_f
 
@@ -432,12 +620,12 @@ module Ai4r
 
       def update_metrics(data_item, cluster_index)
         @unit_symbols.each{ |unit|
-          @centroids[cluster_index][3][unit] += data_item[3][unit] if data_item[3][unit]
+          @centroids[cluster_index][3][unit] += data_item[3][unit].to_f
           next if unit != @cut_symbol
 
-          @total_assigned_cut_load += data_item[3][unit]
+          @total_assigned_cut_load += data_item[3][unit].to_f
           @percent_assigned_cut_load = @total_assigned_cut_load / @total_cut_load.to_f
-          if !@apply_balancing && @centroids.all?{ |cm| cm[3][@cut_symbol].positive? }
+          if !@apply_balancing && @centroids.all?{ |centroid| centroid[3][@cut_symbol].positive? }
             @apply_balancing = true
           end
         }
@@ -447,7 +635,7 @@ module Ai4r
         return false if @strict_limitations.empty?
 
         @centroids[cluster_index][3].any?{ |unit, value|
-          @strict_limitations[cluster_index][unit] && (value + item[3][unit] > @strict_limitations[cluster_index][unit])
+          @strict_limitations[cluster_index][unit] && (value + item[3][unit].to_f > @strict_limitations[cluster_index][unit])
         }
       end
     end

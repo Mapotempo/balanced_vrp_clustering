@@ -34,61 +34,55 @@ module OverloadableFunctions
     true # if not, they are compatible
   end
 
-  def compute_distance_from_and_to_depot(vehicles_infos, data_set, matrix)
+  def compute_distance_from_and_to_depot(vehicles, data_set, matrix)
     return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot] }
 
-    data_set.data_items.each{ |point|
-      point[4][:duration_from_and_to_depot] = []
-    }
-
-    vehicles_infos.each{ |vehicle_info|
-      if matrix # matrix_index
-        single_index_array = vehicle_info[:depot]
-        point_indices = data_set.data_items.map{ |point| point[4][:matrix_index] }
-        time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
-        time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
-      else
-        items_locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
-        time_matrix_from_depot = [items_locations.collect{ |item_location|
-          Helper.euclidean_distance(vehicle_info[:depot], item_location)
-        }]
-        time_matrix_to_depot = items_locations.collect{ |item_location|
-          [Helper.euclidean_distance(item_location, vehicle_info[:depot])]
-        }
-      end
-
-      data_set.data_items.each_with_index{ |point, index|
-        point[4][:duration_from_and_to_depot] << time_matrix_from_depot[0][index] + time_matrix_to_depot[index][0]
+    if matrix # matrix_index
+      single_index_array = vehicles.first[:depot]
+      point_indices = data_set.data_items.map{ |point| point[4][:matrix_index] }
+      time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
+      time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
+    else
+      items_locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
+      time_matrix_from_depot = [items_locations.collect{ |item_location|
+        Helper.euclidean_distance(vehicles.first[:depot], item_location)
+      }]
+      time_matrix_to_depot = items_locations.collect{ |item_location|
+        [Helper.euclidean_distance(item_location, vehicles.first[:depot])]
       }
+    end
+
+    data_set.data_items.each_with_index{ |point, index|
+      point[4][:duration_from_and_to_depot] = time_matrix_from_depot[0][index] + time_matrix_to_depot[index][0]
     }
   end
 
-  def compute_limits(cut_symbol, cut_ratio, vehicles_infos, data_items, entity = :vehicle)
+  def compute_limits(cut_symbol, cut_ratio, vehicles, data_items, entity = :vehicle)
     cumulated_metrics = Hash.new(0)
 
     (@unit_symbols || [cut_symbol]).each{ |unit|
       cumulated_metrics[unit] = data_items.collect{ |item| item[3][unit] || 0 }.reduce(&:+)
     }
 
-    strict_limits = if vehicles_infos.none?{ |v_i| v_i[:capacities] }
+    strict_limits = if vehicles.none?{ |v_i| v_i[:capacities] }
       []
     else
-      vehicles_infos.collect{ |cluster|
-        s_l = { duration: cluster[:total_work_time], visits: cumulated_metrics[:visits] }
-        cumulated_metrics.each{ |unit, _total_metric|
-          s_l[unit] = ((cluster[:capacities].has_key? unit) ? cluster[:capacities][unit] : 0)
+      vehicles.collect{ |cluster|
+        s_l = {}
+        cumulated_metrics.keys.each{ |unit|
+          s_l[unit] = (cluster[:capacities].has_key?(unit) ? cluster[:capacities][unit] : 0)
         }
         s_l
       }
     end
 
-    total_work_time = vehicles_infos.map{ |cluster| cluster[:total_work_time] }.reduce(&:+).to_f
+    total_work_time = vehicles.map{ |cluster| cluster[:total_work_time] }.reduce(&:+).to_f
     metric_limits = if entity == :vehicle && total_work_time.positive?
-      vehicles_infos.collect{ |cluster|
+      vehicles.collect{ |cluster|
         { limit: cut_ratio * (cumulated_metrics[cut_symbol].to_f * (cluster[:total_work_time] / total_work_time)) }
       }
     else
-      { limit: cut_ratio * (cumulated_metrics[cut_symbol] / vehicles_infos.size) }
+      { limit: cut_ratio * (cumulated_metrics[cut_symbol] / vehicles.size) }
     end
 
     [strict_limits, metric_limits]

@@ -42,8 +42,8 @@ class FunctionsTest < Minitest::Test
   def test_compute_limits
     clusterer, data_items = Instance.two_clusters_4_items
 
-    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles_infos, data_items.data_items)
-    (0..clusterer.vehicles_infos.size - 1).each{ |cluster_index|
+    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_items.data_items)
+    (0..clusterer.vehicles.size - 1).each{ |cluster_index|
       assert_equal 0, strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
       assert_equal 2, cut_limit[:limit]
@@ -52,21 +52,21 @@ class FunctionsTest < Minitest::Test
 
   def test_compute_limits_with_work_time
     clusterer, data_items = Instance.two_clusters_4_items
-    clusterer.vehicles_infos[0][:total_work_time] = 1
-    clusterer.vehicles_infos[1][:total_work_time] = 3
+    clusterer.vehicles[0][:total_work_time] = 1
+    clusterer.vehicles[1][:total_work_time] = 3
 
-    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles_infos, data_items.data_items)
-    (0..clusterer.vehicles_infos.size - 1).each{ |cluster_index|
-      assert_equal clusterer.vehicles_infos[cluster_index][:total_work_time], strict_limit[cluster_index][:duration]
+    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_items.data_items)
+    (0..clusterer.vehicles.size - 1).each{ |cluster_index|
+      assert_equal clusterer.vehicles[cluster_index][:total_work_time], strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
-      assert_equal clusterer.vehicles_infos[cluster_index][:total_work_time], cut_limit[cluster_index][:limit]
+      assert_equal clusterer.vehicles[cluster_index][:total_work_time], cut_limit[cluster_index][:limit]
     }
   end
 
   def test_use_provided_centroids
     clusterer, data_items = Instance.two_clusters_4_items
 
-    clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles_infos)
+    clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles)
     clusterer.compatibility_function = lambda do |data_item, centroid|
       compatible_characteristics?(data_item[4], centroid[4])
     end
@@ -118,8 +118,8 @@ class FunctionsTest < Minitest::Test
     end
 
     # check expected_caracteristics and centroids skills are compatible
-    clusterer.vehicles_infos[1][:skills] << 'needs_vehicle_1'
-    clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles_infos)
+    clusterer.vehicles[1][:skills] << 'needs_vehicle_1'
+    clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles)
     data_items.data_items[0][4][:skills] << 'needs_vehicle_1'
     clusterer.instance_variable_set(:@data_set, data_items)
     clusterer.centroid_indices = [0, 1]

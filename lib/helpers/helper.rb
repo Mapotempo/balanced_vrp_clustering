@@ -17,6 +17,14 @@
 #
 
 module Helper
+  def self.fixnum_max
+    (2**(0.size * 8 - 2) - 1)
+  end
+
+  def self.fixnum_min
+    -(2**(0.size * 8 - 2))
+  end
+
   def self.flying_distance(loc_a, loc_b)
     return 0.0 unless loc_a[0] && loc_b[0]
 
@@ -58,4 +66,82 @@ module Helper
       }
     }
   end
+
+  def self.check_if_projection_inside_the_line_segment(point_coord, line_beg_coord, line_end_coord, margin)
+    # margin: if (0 > margin > 1), the percentage of the line segment that will be considered as "outside"
+    # margin: if (margin < 0), the percentage that the "inside" zone is extended
+    # [0, 1]: coordinates [lat, lon] or [lon, lat]
+    line_direction = [0, 1].collect{ |i| line_end_coord[i] - line_beg_coord[i] }
+    point_direction = [0, 1].collect{ |i| point_coord[i] - line_beg_coord[i] }
+
+    projection_scaler = [0, 1].sum{ |i| line_direction[i] * point_direction[i] } / [0, 1].sum{ |i| line_direction[i]**2 }
+    # If projection_scaler
+    # >1:        the projection is after the line segment end
+    # <0:        it is before the line segment begin
+    # otherwise: it is on the line segment define by begin_coord end end_coord
+
+    # If the following holds, it is inside the margin of the line segment
+    projection_scaler >= 0 + 0.5 * margin && projection_scaler <= 1 - 0.5 * margin
+  end
+
+end
+
+# Some functions for convenience
+# In the same vein as active_support Enumerable.sum implementation
+module Enumerable
+  # Provide the average on an array
+  #  [5, 15, 7].mean # => 9.0
+  def mean(type = :arithmetic)
+    return nil if empty?
+
+    case type
+    when :arithmetic
+      inject(0) { |sum, x| sum + x } / size.to_f
+    when :geometric
+      # can overflow for large inputs
+      reduce(:*)**(1.0 / size) if all?(&:positive?)
+    else
+      raise RuntimeError, "Unknown mean type: #{type}"
+    end
+  end
+
+  # If the array has an odd number, then simply pick the one in the middle
+  # If the array size is even, then we return the mean of the two middle.
+  #  [5, 15, 7].median # => 7
+  def median(already_sorted = false)
+    return nil if empty?
+
+    sort! unless already_sorted
+    m_pos = size / 2 # no to_f!
+    size.odd? ? self[m_pos] : self[m_pos - 1..m_pos].mean
+  end
+
+  # The mode is the single most popular item in the array.
+  #  [5, 15, 10, 15].mode # => 15
+  def mode
+    modes(false)[0]
+  end
+
+  # In case there are multiple elements with the highest occurence
+  #  [5, 15, 10, 10, 15].modes # => [10, 15]
+  #  [5, 15, 10, 15].modes     # => [15] (Note that modes() returns an array)
+  def modes(find_all = true)
+    return nil if empty?
+
+    histogram = each_with_object(Hash.new(0)) { |n, h| h[n] += 1 }
+    modes = nil
+    histogram.each_pair do |item, times|
+      modes << item if find_all && !modes.nil? && times == modes[0]
+      modes = [times, item] if (modes && times > modes[0]) || (modes.nil? && times > 1)
+    end
+    modes.nil? ? nil : modes[1...modes.size]
+  end
+
+  # group_by like counting routine for convenience
+  def count_by(&block)
+    self.group_by(&block)
+        .map{ |key, items| [key, items&.count] }
+        .to_h
+  end
+
 end
