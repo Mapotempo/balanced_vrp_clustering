@@ -67,19 +67,19 @@ module OverloadableFunctions
     strict_limits = if vehicles.none?{ |v_i| v_i[:capacities] }
       []
     else
-      vehicles.collect{ |cluster|
-        s_l = {}
+      vehicles.collect{ |vehicle|
+        s_l = { duration: vehicle[:total_work_time], visits: cumulated_metrics[:visits] }
         cumulated_metrics.keys.each{ |unit|
-          s_l[unit] = (cluster[:capacities].has_key?(unit) ? cluster[:capacities][unit] : 0)
+          s_l[unit] = (vehicle[:capacities].has_key?(unit) ? vehicle[:capacities][unit] : 0)
         }
         s_l
       }
     end
 
-    total_work_time = vehicles.map{ |cluster| cluster[:total_work_time] }.reduce(&:+).to_f
+    total_work_time = vehicles.map{ |vehicle| vehicle[:total_work_time] }.reduce(&:+).to_f
     metric_limits = if entity == :vehicle && total_work_time.positive?
-      vehicles.collect{ |cluster|
-        { limit: cut_ratio * (cumulated_metrics[cut_symbol].to_f * (cluster[:total_work_time] / total_work_time)) }
+      vehicles.collect{ |vehicle|
+        { limit: cut_ratio * (cumulated_metrics[cut_symbol].to_f * (vehicle[:total_work_time] / total_work_time)) }
       }
     else
       { limit: cut_ratio * (cumulated_metrics[cut_symbol] / vehicles.size) }

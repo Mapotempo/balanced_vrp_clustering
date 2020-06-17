@@ -80,17 +80,17 @@ class ClusteringTest < Minitest::Test
     clusterer.vehicles.first[:days] = ['mon']
     data_items.data_items[0][4][:days] = ['mon']
     data_items.data_items[1][4][:days] = ['mon']
-    expected = [data_items.data_items[0][2], data_items.data_items[1][2]]
+    expected = [data_items.data_items[0][2], data_items.data_items[1][2]].sort
 
     clusterer.build(data_items, :visits)
     assert(clusterer.clusters.any?{ |cluster|
-      cluster.data_items.collect{ |item| item[2] } == expected
+      cluster.data_items.collect{ |item| item[2] }.sort == expected
     })
   end
 
   def test_cluster_balance
     # from test_cluster_balance in optimizer-api project
-    regularity_restart = 5
+    regularity_restart = 6
     balance_deviations = []
     (1..regularity_restart).each{ |trial|
       puts "Regularity trial: #{trial}/#{regularity_restart}"
@@ -98,6 +98,7 @@ class ClusteringTest < Minitest::Test
 
       vehicles = Marshal.load(File.binread('test/fixtures/cluster_balance_vehicles_infos.bindump'))
       data_set = Marshal.load(File.binread('test/fixtures/cluster_balance_data_set.bindump'))
+      units = data_set.data_items.collect{ |i| i[3].keys }.flatten.uniq
 
       clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
       clusterer.max_iterations = 300
@@ -108,7 +109,7 @@ class ClusteringTest < Minitest::Test
         number_of_items_expected = data_set.data_items.size
 
         total_load_by_units = Hash.new(0)
-        data_set.data_items.each{ |item| item[3].each{ |unit, quantity| total_load_by_units[unit] += quantity } }
+        data_set.data_items.each{ |item| item[3].each{ |unit, quantity| total_load_by_units[unit] += quantity if units.include? unit} }
         # Adapt each vehicle capacity according to items to clusterize
         vehicles.each{ |v_i|
           v_i[:capacities] = {}
@@ -149,11 +150,11 @@ class ClusteringTest < Minitest::Test
         condition: balance_deviations.count{ |max_dev| max_dev > 0.21 } <= (regularity_restart * 0.20).ceil,
         message: 'The maximum balance deviation sould not be larger than 21% for more than 20% of the trials.'
       }, {
-        condition: balance_deviations.count{ |max_dev| max_dev > 0.17 } <= (regularity_restart * 0.35).ceil,
-        message: 'The maximum balance deviation sould not be larger than 17% for more than 35% of the trials.'
+        condition: balance_deviations.count{ |max_dev| max_dev > 0.185 } <= (regularity_restart * 0.35).ceil,
+        message: 'The maximum balance deviation sould not be larger than 18.5% for more than 35% of the trials.'
       }, {
-        condition: balance_deviations.count{ |max_dev| max_dev <= 0.135 } >= (regularity_restart * 0.45).floor,
-        message: 'The maximum balance deviation sould be less than 13.5% most of the time -- >45% of the trials.'
+        condition: balance_deviations.count{ |max_dev| max_dev <= 0.165 } >= (regularity_restart * 0.45).floor,
+        message: 'The maximum balance deviation sould be less than 16.5% most of the time -- >45% of the trials.'
       }
     ]
 
