@@ -162,23 +162,24 @@ class ClusteringTest < Minitest::Test
 
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
-    data_set = Marshal.load(File.binread('test/fixtures/avoid_overlap_data_set.bindump'))
+    # depending on the seed, sometimes it doesn't pass -- 1 out of 10
+    data_items, options, ratio = Marshal.load(File.binread('test/fixtures/avoid_capacities_overlap.bindump'))
 
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-    clusterer.max_iterations = 300
-    clusterer.vehicles = Marshal.load(File.binread('test/fixtures/avoid_overlap_vehicles_infos.bindump'))
-    clusterer.distance_matrix = Marshal.load(File.binread('test/fixtures/avoid_overlap_distance_matrix.bindump'))
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
 
-    clusterer.build(data_set, :duration, 1.0, entity: :vehicle)
+    clusterer.build(DataSet.new(data_items: data_items), options[:cut_symbol], ratio, options)
+    clusterer.clusters.delete([])
 
     assert_equal 5, clusterer.clusters.size
 
-    assert clusterer.clusters.collect{ |cluster|
-      cluster.data_items.collect{ |item| item[3][:kg] * item[3][:visits_number] }.reduce(&:+)
-    }.select.with_index{ |value, i| value > clusterer.vehicles[i][:capacities][:qte] }.size <= 1
-
-    assert clusterer.clusters.collect{ |cluster|
-      cluster.data_items.collect{ |item| item[3][:qte] * item[3][:visits_number] }.reduce(&:+)
-    }.select.with_index{ |value, i| value > clusterer.vehicles[i][:capacities][:qte] }.size <= 1
+    %i[kg qte].each{ |unit|
+      assert_operator clusterer.clusters.map.with_index.count{ |cluster, i|
+        cluster.data_items.sum{ |item| item[3][unit] } > clusterer.vehicles[i][:capacities][unit]
+      }, :<=, 1
+    }
   end
+
 end
