@@ -160,6 +160,22 @@ class ClusteringTest < Minitest::Test
     asserts.each { |check| assert check[:condition], check[:message] }
   end
 
+  def test_length_centroid
+    # from test_length_centroid in optimizer-api project
+    # more vehicles than data_items..
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/length_centroid.bindump'))
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+
+    clusterer.build(data_set, options[:cut_symbol], ratio, options)
+    clusterer.clusters.delete([])
+
+    assert_equal 2, clusterer.clusters.size
+  end
+
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
     # depending on the seed, sometimes it doesn't pass -- 1 out of 10

@@ -135,10 +135,10 @@ module Ai4r
         }
         @expected_n_visits = @data_set.data_items.sum{ |d_i| d_i[3][:visits] } / @number_of_clusters.to_f
         compatibility_groups.each{ |compatibility, group|
-          compatible_vehicle_count = compatibility.sum.to_f
-          incompatible_vehicle_count = @number_of_clusters.to_f - compatible_vehicle_count
+          compatible_vehicle_count = compatibility.sum
+          incompatible_vehicle_count = @vehicles.size - compatible_vehicle_count
 
-          compatibility_weight = (@expected_n_visits**((1.0 + Math.log(incompatible_vehicle_count / @number_of_clusters + 0.1)) / (1.0 + Math.log(1.1)))) / [group.size / compatible_vehicle_count, 1.0].max
+          compatibility_weight = (@expected_n_visits**((1.0 + Math.log(incompatible_vehicle_count / @vehicles.size.to_f + 0.1)) / (1.0 + Math.log(1.1)))) / [group.size / compatible_vehicle_count, 1.0].max
 
           group.each{ |d_i| d_i[3][:centroid_weights][:compatibility] = compatibility_weight.ceil }
         }
@@ -229,8 +229,8 @@ module Ai4r
           if data[2] > [2 * mean_ratio.to_f, 5].min || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
             point = data[0][0..1]
             centroid_with_violation = @centroids[data[3]][0..1]
-            centroid_witout_violation = @centroids[data[4]][0..1]
-            if Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
+            centroid_witout_violation = data[4] && @centroids[data[4]][0..1]
+            if centroid_witout_violation && Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
               moved_down += 1
               data[0][3][:moved_down] = true
               data[0][3][:centroid_weights][:limit].collect!{ |w| [w * 2, [@expected_n_visits / 10, 5].max].min } # TODO: a better mechanism ?
@@ -238,7 +238,7 @@ module Ai4r
               @data_set.data_items.insert(@data_set.data_items.size - 1, @data_set.data_items.delete(data[0]))
             else
               moved_up += 1
-              data[0][3][:moved_up] = true
+              data[0][3][:moved_up] = true if centroid_witout_violation
               @data_set.data_items.insert(0, @data_set.data_items.delete(data[0]))
             end
           end
@@ -366,10 +366,12 @@ module Ai4r
             closest_cluster_wo_violation_index = k
             mininimum_without_limit_violation = distances[k]
           }
+
           if closest_cluster_wo_violation_index
-            @clusters_with_limit_violation[closest_cluster_index] << closest_cluster_wo_violation_index
             mininimum_with_limit_violation = distances.min
             @items_with_limit_violation << [data_item, mininimum_without_limit_violation - mininimum_with_limit_violation, mininimum_without_limit_violation / mininimum_with_limit_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
+
+            @clusters_with_limit_violation[closest_cluster_index] << closest_cluster_wo_violation_index
             closest_cluster_index = closest_cluster_wo_violation_index
           end
         end
