@@ -62,11 +62,11 @@ module Ai4r
 
         ### return clean errors if inconsistent data ###
         if distance_matrix
-          if @vehicles.any?{ |v_i| v_i[:depot].size != 1 } ||
+          if @vehicles.any?{ |v_i| v_i[:depot]&.size != 1 } ||
              data_set.data_items.any?{ |item| !item[4][:matrix_index] }
             raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
           end
-        elsif @vehicles.any?{ |v_i| v_i[:depot].compact.size != 2 }
+        elsif @vehicles.any?{ |v_i| v_i[:depot]&.compact&.size != 2 }
           raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all vehicles'
         end
 
@@ -75,11 +75,8 @@ module Ai4r
         end
 
         if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) }
+          # TODO: remove this condition and handle the infinity capacities properly.
           raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
-        end
-
-        if cut_symbol && data_set.data_items.any?{ |item| item[3].nil? || !item[3].has_key?(cut_symbol) }
-          raise ArgumentError, 'The unit corresponding to the cut symbol should be provided for all items'
         end
 
         ### values ###

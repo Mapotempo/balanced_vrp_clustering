@@ -32,12 +32,4 @@ class ClusteringTest < Minitest::Test
       clusterer.build(data_items, :visits)
     end
   end
-
-  def test_minimal_unit
-    clusterer, data_items = Instance.two_clusters_4_items
-    data_items.data_items.first[3] = {}
-    assert_raises ArgumentError do
-      clusterer.build(data_items, :visits)
-    end
-  end
 end
