@@ -607,10 +607,10 @@ module Ai4r
 
         @logger&.debug "Iteration #{@iteration}: total centroid movement #{total_movement_meter} eucledian meters"
 
-        # If convereged, we can stop
-        return true if total_movement_meter < @number_of_clusters * 10
+        @last_n_average_diffs.push total_movement_meter.to_f # add to the vector before convergence check in case other conditions are not satisfied
 
-        @last_n_average_diffs.push total_movement_meter.to_f
+        # If convereged, we can stop
+        return true if @last_n_average_diffs.last < @number_of_clusters * 10
 
         # Check if there is a centroid loop of size n
         (1..last_n_iterations).each{ |n|
