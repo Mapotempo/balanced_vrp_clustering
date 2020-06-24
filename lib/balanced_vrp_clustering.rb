@@ -132,7 +132,7 @@ module Ai4r
         }
         @expected_n_visits = @data_set.data_items.sum{ |d_i| d_i[3][:visits] } / @number_of_clusters.to_f
         compatibility_groups.each{ |compatibility, group|
-          compatible_vehicle_count = compatibility.sum
+          compatible_vehicle_count = [compatibility.sum, 1].max
           incompatible_vehicle_count = @vehicles.size - compatible_vehicle_count
 
           compatibility_weight = (@expected_n_visits**((1.0 + Math.log(incompatible_vehicle_count / @vehicles.size.to_f + 0.1)) / (1.0 + Math.log(1.1)))) / [group.size / compatible_vehicle_count, 1.0].max

@@ -88,6 +88,18 @@ class ClusteringTest < Minitest::Test
     })
   end
 
+  def test_infeasible_skills
+    # the skills of the service does not exist in any of the vehicles
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/infeasible_skills.bindump'))
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+
+    assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
+  end
+
   def test_cluster_balance
     # from test_cluster_balance in optimizer-api project
     regularity_restart = 6
