@@ -100,6 +100,19 @@ class ClusteringTest < Minitest::Test
     assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
   end
 
+  def test_division_by_nan
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/division_by_nan.bindump'))
+    # options[:seed] = 182581703914854297101438278871236808945
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+    clusterer.centroid_indices = options[:centroid_indices] || []
+
+    assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
+  end
+
   def test_cluster_balance
     # from test_cluster_balance in optimizer-api project
     regularity_restart = 6

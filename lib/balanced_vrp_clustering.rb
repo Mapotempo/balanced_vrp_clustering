@@ -368,7 +368,11 @@ module Ai4r
 
           if closest_cluster_wo_violation_index
             mininimum_with_limit_violation = distances.min
-            @items_with_limit_violation << [data_item, mininimum_without_limit_violation - mininimum_with_limit_violation, mininimum_without_limit_violation / mininimum_with_limit_violation, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
+            diff = mininimum_without_limit_violation - mininimum_with_limit_violation
+            ratio = mininimum_without_limit_violation / mininimum_with_limit_violation
+            ratio = 1 if ratio.to_f.nan?
+
+            @items_with_limit_violation << [data_item, diff, ratio, closest_cluster_index, closest_cluster_wo_violation_index, mininimum_with_limit_violation]
 
             @clusters_with_limit_violation[closest_cluster_index] << closest_cluster_wo_violation_index
             closest_cluster_index = closest_cluster_wo_violation_index
