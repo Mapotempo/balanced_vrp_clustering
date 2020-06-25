@@ -496,12 +496,13 @@ module Ai4r
           raise ArgumentError, 'Wrong number of initial centroids provided' if @centroid_indices.size != @number_of_clusters
 
           insert_at_begining = []
-          @centroid_indices.each do |index|
+          @centroid_indices.each_with_index do |index, ind|
             raise ArgumentError, 'Invalid centroid index' unless (index.is_a? Integer) && index >= 0 && index < @data_set.data_items.length
 
             skills = @remaining_skills.shift
             item = @data_set.data_items[index]
-            raise ArgumentError, 'Centroids indices and vehicles do not match' unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
+
+            raise ArgumentError, "Centroid #{ind} is initialised with an incompatible service -- #{index}" unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
             skills[:matrix_index] = item[4][:matrix_index]
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot]
