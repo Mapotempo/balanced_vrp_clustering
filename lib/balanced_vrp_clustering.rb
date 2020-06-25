@@ -240,9 +240,11 @@ module Ai4r
             end
           end
         end
-        @logger&.debug "Decisions taken due to capacity violation for #{@limit_violation_count} items: #{moved_down} of them moved_down, #{moved_up} of them moved_up, #{@limit_violation_count - moved_down - moved_up} of them untouched"
-        @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
-        @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
+        if @limit_violation_count.positive?
+          @logger&.debug "Decisions taken due to capacity violation for #{@limit_violation_count} items: #{moved_down} of them moved_down, #{moved_up} of them moved_up, #{@limit_violation_count - moved_down - moved_up} of them untouched"
+          @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
+          @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
+        end
       end
 
       def recompute_centroids
@@ -606,7 +608,7 @@ module Ai4r
           total_movement_meter += Helper.euclidean_distance(@old_centroids_lat_lon[i], @centroids[i])
         }
 
-        @logger&.debug "Iteration #{@iteration}: total centroid movement #{total_movement_meter} eucledian meters"
+        @logger&.debug "Iteration #{@iteration}: total centroid movement #{total_movement_meter.round} eucledian meters"
 
         @last_n_average_diffs.push total_movement_meter.to_f # add to the vector before convergence check in case other conditions are not satisfied
 
