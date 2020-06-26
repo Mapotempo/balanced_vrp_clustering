@@ -327,13 +327,23 @@ module Ai4r
             next
           end
 
-          favorite_cluster = favorite_clusters.min_by{ |c, i|
-            the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[i][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
-          }[1]
+          favorite_cluster = favorite_clusters.min_by{ |c, index|
+            the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[index][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
+          }[1] # index of the minimum
 
-          swap_safe = @centroids[violated_cluster][0..2] # lat lon point_id
+          swap_safe = [
+            @centroids[violated_cluster][0..2],
+            @centroids[violated_cluster][4][:matrix_index],
+            @centroids[violated_cluster][4][:duration_from_and_to_depot]
+          ] # lat lon point_id and matrix_index duration_from_and_to_depot if exists
+
           @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
-          @centroids[favorite_cluster][0..2] = swap_safe
+          @centroids[violated_cluster][4][:matrix_index] = @centroids[favorite_cluster][4][:matrix_index]
+          @centroids[violated_cluster][4][:duration_from_and_to_depot] = @centroids[favorite_cluster][4][:duration_from_and_to_depot]
+
+          @centroids[favorite_cluster][0..2] = swap_safe[0]
+          @centroids[favorite_cluster][4][:matrix_index] = swap_safe[1]
+          @centroids[favorite_cluster][4][:duration_from_and_to_depot] = swap_safe[2]
 
           @logger&.debug "swapped location of #{violated_cluster + 1}th cluster with #{favorite_cluster + 1}th cluster"
           break # swap only one at a time
