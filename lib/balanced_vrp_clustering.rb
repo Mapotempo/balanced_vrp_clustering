@@ -331,6 +331,12 @@ module Ai4r
             the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[index][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
           }[1] # index of the minimum
 
+          # TODO: we need to understand why the folling if condition happens:
+          # It is probably due to missing units in capacity -- which lead to
+          # the same point "rejected" by every cluster and this
+          # makes them get labeled "violated"
+          next if favorite_cluster == violated_cluster
+
           swap_safe = [
             @centroids[violated_cluster][0..2],
             @centroids[violated_cluster][4][:matrix_index],
