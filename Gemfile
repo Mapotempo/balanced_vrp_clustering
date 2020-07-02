@@ -1,6 +1,8 @@
 source 'https://rubygems.org'
 ruby '~> 2.3'
 
+gemspec
+
 gem 'require_all'
 
 gem 'rack'

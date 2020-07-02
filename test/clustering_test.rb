@@ -74,6 +74,15 @@ class ClusteringTest < Minitest::Test
     })
   end
 
+  def test_with_output
+    Dir.mktmpdir('temp_', 'test/') { |tmpdir|
+      clusterer, data_items = Instance.two_clusters_4_items
+      clusterer.geojson_dump_folder = tmpdir
+      clusterer.build(data_items, :visits)
+      refute_empty(Dir["#{tmpdir}/generated_cluster_*_iteration_*.geojson"], 'At least one geojson output should have been generated')
+    }
+  end
+
   def test_with_days
     clusterer, data_items = Instance.two_clusters_4_items
 

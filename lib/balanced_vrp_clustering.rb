@@ -25,6 +25,11 @@ require 'ai4r'
 require 'helpers/helper.rb'
 require 'concerns/overloadable_functions.rb'
 
+# for geojson dump
+require 'helpers/hull.rb'
+require 'color-generator'
+require 'geojson2image'
+
 module Ai4r
   module Clusterers
     class BalancedVRPClustering < KMeans
@@ -37,6 +42,9 @@ module Ai4r
                       then vehicles should be ordered according to centroid_indices order',
                       vehicles_infos: '(DEPRECATED) Use vehicles',
                       logger: 'The logger to write the output. All written to logger.debug at the moment.',
+                      geojson_dump_folder: 'If set, every geojson_dump_freq many iterations,'\
+                        'the geojson will be dumped to geojson_dump_folder.',
+                      geojson_dump_freq: 'Sets the frequency for geojson dump. (Default: 2)',
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
                       compatibility_function: 'Custom implementation of a compatibility_function.'\
                         'It must be a closure receiving a data item and a centroid and return a '\
@@ -87,6 +95,7 @@ module Ai4r
         @number_of_clusters = [@vehicles.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
         ### default values ###
+        @geojson_dump_freq ||= 2
         @max_iterations ||= [0.5 * @data_set.data_items.size, 100].max
 
         @distance_function ||= lambda do |a, b|
@@ -177,6 +186,9 @@ module Ai4r
           update_cut_limit
 
           calculate_membership_clusters
+
+          output_cluster_geojson if @geojson_dump_folder && @iteration.modulo(@geojson_dump_freq) == 0
+
           recompute_centroids
         end
 
@@ -188,6 +200,8 @@ module Ai4r
 
           calculate_membership_clusters
         end
+
+        output_cluster_geojson if @geojson_dump_folder
 
         self
       end
@@ -668,6 +682,144 @@ module Ai4r
 
         @centroids[cluster_index][3].any?{ |unit, value|
           @strict_limitations[cluster_index][unit] && (value + item[3][unit].to_f > @strict_limitations[cluster_index][unit])
+        }
+      end
+
+      def output_cluster_geojson
+        @start_time ||= Time.now.strftime('%H:%M:%S').parameterize
+        colorgenerator = ColorGenerator.new(saturation: 0.8, value: 1.0, seed: 1) if @geojson_colors.nil? # fix the seed so that color order is the same
+        @geojson_colors ||= Array.new(@number_of_clusters){ "##{colorgenerator.create_hex}" }
+
+        polygons = []
+        points = []
+        # cluster for each vehicle
+        @clusters.each_with_index{ |cluster, c_index|
+          polygons << collect_hulls(cluster, c_index)
+          points << collect_points(cluster, c_index)
+        }
+        polygons.flatten!.compact!
+        points.flatten!.compact!
+        file_name = "generated_cluster_#{@start_time}_iteration_#{@iteration}".parameterize
+        geojson = {
+          type: 'FeatureCollection',
+          features: polygons + points
+        }
+
+        File.write(File.join(@geojson_dump_folder, "#{file_name}.geojson"), geojson.to_json)
+
+        # Generating the image takes long but for dev it is useful, should not be given as option.
+        generate_cluster_images = false
+        if generate_cluster_images
+          image_folder_path = File.join(@geojson_dump_folder, @start_time)
+          FileUtils.mkdir_p(image_folder_path)
+          geojson = {
+            type: 'FeatureCollection',
+            features: polygons
+          }
+          g2i = Geojson2image::Convert.new(
+            json: geojson.to_json,
+            width: 1080,
+            height: 1080,
+            padding: 0,
+            background: '#ffffff',
+            fill: '#008000',
+            stroke: '#006400',
+            output: File.join(image_folder_path, "output-#{@iterations}.png")
+          )
+          begin
+            g2i.to_image
+            FileUtils.cp(File.join(image_folder_path, "output-#{@iterations}.png"), File.join(@geojson_dump_folder, 'output-latest.png'))
+          rescue
+            # skip image generation if there is a polygon with less then 2 points
+            # Note: Doesn't have to be skipped but since the image is not necessary it doesn't worth the time.
+          end
+        end
+
+        puts 'Clusters saved : ' + file_name
+      end
+
+      def collect_hulls(cluster, c_index)
+        color = @geojson_colors[c_index]
+
+        vector = cluster.data_items.collect{ |item|
+          [item[1], item[0]]
+        }
+        hull = Hull.get_hull(vector)
+        return nil if hull.nil?
+
+        totals = Hash.new(0)
+
+        total_keys = cluster.data_items[0][3].keys - [:duration_from_and_to_depot, :matrix_index]
+        cluster.data_items.each{ |d|
+          total_keys.each{ |key| totals["total_#{key}"] += d[3][key].to_f if d[3] && d[3][key] &&  d[3][key].is_a?(Numeric) }
+        }
+
+        features = [
+          {
+            type: 'Feature',
+            properties: {
+              color: color,
+              'marker-size': 'large',
+              'marker-color': color,
+              stroke: '#000000',
+              'stroke-opacity': 0,
+              'stroke-width': 10,
+              name: "#{@centroids[c_index][4][:v_id]&.join(',')}_center",
+              lat_lon: @centroids[c_index][0..1].join(','),
+              lon_lat: @centroids[c_index][0..1].reverse.join(','),
+              matrix_index: @centroids[c_index][3][:matrix_index],
+              point_count: cluster.data_items.size,
+              depot_distance: @centroids[c_index][3][:duration_from_and_to_depot],
+              # balance_coeff: @balance_coeff[c_index], # will ve
+            }.merge(totals),
+            geometry: {
+              type: 'Point',
+              coordinates: [@centroids[c_index][1], @centroids[c_index][0]]
+            }
+          },
+          {
+            type: 'Feature',
+            properties: {
+              color: color,
+              fill: color,
+              name: @centroids[c_index][4][:v_id]&.join(','),
+              lat_lon: @centroids[c_index][0..1].join(','),
+              lon_lat: @centroids[c_index][0..1].reverse.join(','),
+              matrix_index: @centroids[c_index][3][:matrix_index],
+              point_count: cluster.data_items.size,
+              depot_distance: @centroids[c_index][3][:duration_from_and_to_depot],
+              # balance_coeff: @balance_coeff[c_index],
+            }.merge(totals),
+            geometry: {
+              type: 'Polygon',
+              coordinates: [hull + [hull.first]]
+            }
+          }
+        ]
+
+        features
+      end
+
+      def collect_points(cluster, c_index)
+        color = @geojson_colors[c_index]
+        cluster.data_items.collect{ |item|
+          {
+            type: 'Feature',
+            properties: {
+              color: color,
+              'marker-size': 'small',
+              'marker-color': color,
+              name: item[2],
+              lat_lon: item[0..1].join(','),
+              lon_lat: item[0..1].reverse.join(','),
+              distance: @distance_function.call(item, @centroids[c_index]),
+              distance_balanced: distance(item, @centroids[c_index], c_index),
+            }.merge(item[3]).merge(item[4]),
+            geometry: {
+              type: 'Point',
+              coordinates: [item[1], item[0]]
+            }
+          }
         }
       end
     end
