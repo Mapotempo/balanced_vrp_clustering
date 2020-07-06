@@ -268,7 +268,7 @@ module Ai4r
                                 1
                               end
 
-            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1) * d_i[3][:visits] * d_i[3][:centroid_weights][:compatibility] * d_i[3][:centroid_weights][:limit][index]
+            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1)**0.2 * d_i[3][:visits]**0.2 * d_i[3][:centroid_weights][:compatibility] * d_i[3][:centroid_weights][:limit][index]
             d_i[3][:moved_up] = d_i[3][:moved_down] = nil
             total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
           }
