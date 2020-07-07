@@ -159,8 +159,10 @@ module Ai4r
           else
             # first @centroids.length data_items correspond to centroids, they should remain at the begining of the set
             data_length = @data_set.data_items.size
-            @data_set.data_items[0..-1] = @data_set.data_items[0..@centroids.length - 1] + @data_set.data_items[@centroids.length..-1].sort_by! { |x| -x[3][@cut_symbol].to_f }
-            @data_set.data_items[((@centroids.length - 1) + data_length * 0.1).to_i..(data_length * 0.90).to_i] = @data_set.data_items[((@centroids.length - 1) + data_length * 0.1).to_i..(data_length * 0.90).to_i].shuffle!
+            @data_set.data_items[@centroids.length..-1] = @data_set.data_items[@centroids.length..-1].sort_by { |x| -x[3][@cut_symbol].to_f }
+            range_end = (data_length * 0.9).to_i
+            range_begin = [(@centroids.length + data_length * 0.1).to_i, range_end].min
+            @data_set.data_items[range_begin..range_end] = @data_set.data_items[range_begin..range_end].shuffle
           end
         end
 
