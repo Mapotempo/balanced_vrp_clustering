@@ -527,21 +527,33 @@ module Ai4r
                 @compatibility_function.call(item, [0, 0, 0, 0, skills, 0])
             }
 
-            if compatible_items.empty?
-              # If there are no items which specifically needs these skills,
-              # then find all the items that can be assigned to this cluster
+            # If there are no items which specifically needs these skills,
+            # then find all the items that can be assigned to this cluster.
+            # Prefer items whom closest depot corresponds to current cluster.
+            margin = 0
+            while compatible_items.empty? && margin < @vehicles.length
               compatible_items = @data_set.data_items.select{ |item|
                 !@centroids.collect{ |centroid| centroid[2] }.flatten.include?(item[2]) &&
                   @compatibility_function.call(item, [0, 0, 0, 0, skills, 0])
+              }.select{ |item|
+                minimum_accepted = item[4][:duration_from_and_to_depot].sort[margin]
+                item[4][:duration_from_and_to_depot][@centroids.length] == minimum_accepted # avoid find index because if two clusters have same duration_from_and_to_depot it might reject current centroid uncorrectly
               }
+              margin += 1
             end
 
-            if compatible_items.empty?
-              # If, still, there are no items that can be assigned to this cluster
-              # initialize it with a random point
+            # If, still, there are no items that can be assigned to this cluster
+            # initialize it with a random point
+            # Prefer items whom closest depot corresponds to current cluster.
+            margin = 0
+            while compatible_items.empty? && margin < @vehicles.length
               compatible_items = @data_set.data_items.reject{ |item|
                 @centroids.collect{ |centroid| centroid[2] }.flatten.include?(item[2])
+              }.select{ |item|
+                minimum_accepted = item[4][:duration_from_and_to_depot].sort[margin]
+                item[4][:duration_from_and_to_depot][@centroids.length] == minimum_accepted # avoid find index because if two clusters have same duration_from_and_to_depot it might reject current centroid uncorrectly
               }
+              margin += 1
             end
 
             if compatible_items.empty?
