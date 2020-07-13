@@ -121,7 +121,7 @@ module Ai4r
           item[4][:skills] ||= []
           item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
           item[3][:visits] ||= 1
-          item[3][:centroid_weights] = {
+          item[4][:centroid_weights] = {
             limit: Array.new(@number_of_clusters, 1),
             compatibility: 1
           }
@@ -146,7 +146,7 @@ module Ai4r
 
           compatibility_weight = (@expected_n_visits**((1.0 + Math.log(incompatible_vehicle_count / @vehicles.size.to_f + 0.1)) / (1.0 + Math.log(1.1)))) / [group.size / compatible_vehicle_count, 1.0].max
 
-          group.each{ |d_i| d_i[3][:centroid_weights][:compatibility] = compatibility_weight.ceil }
+          group.each{ |d_i| d_i[4][:centroid_weights][:compatibility] = compatibility_weight.ceil }
         }
 
         compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix) if @cut_symbol == :duration
@@ -243,13 +243,13 @@ module Ai4r
             centroid_witout_violation = data[4] && @centroids[data[4]][0..1]
             if centroid_witout_violation && Helper.check_if_projection_inside_the_line_segment(point, centroid_with_violation, centroid_witout_violation, 0.1)
               moved_down += 1
-              data[0][3][:moved_down] = true
-              data[0][3][:centroid_weights][:limit].collect!{ |w| [w * 2, [@expected_n_visits / 10, 5].max].min } # TODO: a better mechanism ?
-              data[0][3][:centroid_weights][:limit][data[3]] = 1
+              data[0][4][:moved_down] = true
+              data[0][4][:centroid_weights][:limit].collect!{ |w| [w * 2, [@expected_n_visits / 10, 5].max].min } # TODO: a better mechanism ?
+              data[0][4][:centroid_weights][:limit][data[3]] = 1
               @data_set.data_items.insert(@data_set.data_items.size - 1, @data_set.data_items.delete(data[0]))
             else
               moved_up += 1
-              data[0][3][:moved_up] = true if centroid_witout_violation
+              data[0][4][:moved_up] = true if centroid_witout_violation
               @data_set.data_items.insert(0, @data_set.data_items.delete(data[0]))
             end
           end
@@ -274,20 +274,20 @@ module Ai4r
           # That's what matters the most (how many times we have to go to a zone an how far this zone is)
           total_weighted_visit_distance = 0
           @clusters[index].data_items.each{ |d_i|
-            distance_weight = if d_i[3][:moved_up]
+            distance_weight = if d_i[4][:moved_up]
                                 0.1
-                              elsif d_i[3][:moved_down]
+                              elsif d_i[4][:moved_down]
                                 10
                               else
                                 1
                               end
 
-            d_i[3][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1)**0.2 * d_i[3][:visits]**0.2 * d_i[3][:centroid_weights][:compatibility] * d_i[3][:centroid_weights][:limit][index]
-            d_i[3][:moved_up] = d_i[3][:moved_down] = nil
-            total_weighted_visit_distance += d_i[3][:weighted_visit_distance]
+            d_i[4][:weighted_visit_distance] = distance_weight * (Helper.flying_distance(centroid, d_i) + 1)**0.2 * d_i[3][:visits]**0.2 * d_i[4][:centroid_weights][:compatibility] * d_i[4][:centroid_weights][:limit][index]
+            d_i[4][:moved_up] = d_i[4][:moved_down] = nil
+            total_weighted_visit_distance += d_i[4][:weighted_visit_distance]
           }
-          centroid[0] = centroid_smoothing_coeff * centroid[0] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[0] * d_i[3][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
-          centroid[1] = centroid_smoothing_coeff * centroid[1] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[1] * d_i[3][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
+          centroid[0] = centroid_smoothing_coeff * centroid[0] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[0] * d_i[4][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
+          centroid[1] = centroid_smoothing_coeff * centroid[1] + (1.0 - centroid_smoothing_coeff) * @clusters[index].data_items.sum{ |d_i| d_i[1] * d_i[4][:weighted_visit_distance] } / total_weighted_visit_distance.to_f
 
           # A selector which selects closest point to represent the centroid which is the most "representative" in terms of distace to the
           point_closest_to_centroid_center = clusters[index].data_items.min_by([[(@clusters[index].data_items.size / 10.0).ceil, 5].min, 2].max){ |data_point|
