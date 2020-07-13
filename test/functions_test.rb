@@ -40,9 +40,9 @@ class FunctionsTest < Minitest::Test
   end
 
   def test_compute_limits
-    clusterer, data_items = Instance.two_clusters_4_items
+    clusterer, data_set = Instance.two_clusters_4_items
 
-    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_items.data_items)
+    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_set.data_items)
     clusterer.vehicles.size.times.each{ |cluster_index|
       assert_equal 0, strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
@@ -51,11 +51,11 @@ class FunctionsTest < Minitest::Test
   end
 
   def test_compute_limits_with_work_time
-    clusterer, data_items = Instance.two_clusters_4_items
+    clusterer, data_set = Instance.two_clusters_4_items
     clusterer.vehicles[0][:total_work_time] = 1
     clusterer.vehicles[1][:total_work_time] = 3
 
-    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_items.data_items)
+    strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_set.data_items)
     clusterer.vehicles.size.times.each{ |cluster_index|
       assert_equal clusterer.vehicles[cluster_index][:total_work_time], strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
@@ -64,14 +64,14 @@ class FunctionsTest < Minitest::Test
   end
 
   def test_use_provided_centroids
-    clusterer, data_items = Instance.two_clusters_4_items
+    clusterer, data_set = Instance.two_clusters_4_items
 
     clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles)
     clusterer.compatibility_function = lambda do |data_item, centroid|
       compatible_characteristics?(data_item[4], centroid[4])
     end
 
-    clusterer.instance_variable_set(:@data_set, data_items)
+    clusterer.instance_variable_set(:@data_set, data_set)
     clusterer.instance_variable_set(:@number_of_clusters, 2)
 
     clusterer.centroid_indices = [0, 1]
@@ -83,13 +83,13 @@ class FunctionsTest < Minitest::Test
   end
 
   def test_check_centroids_validity
-    clusterer, data_items = Instance.two_clusters_4_items
+    clusterer, data_set = Instance.two_clusters_4_items
 
     clusterer.compatibility_function = lambda do |data_item, centroid|
       compatible_characteristics?(data_item[4], centroid[4])
     end
 
-    clusterer.instance_variable_set(:@data_set, data_items)
+    clusterer.instance_variable_set(:@data_set, data_set)
     clusterer.instance_variable_set(:@number_of_clusters, 2)
 
     clusterer.centroid_indices = [0, 0]
@@ -120,8 +120,8 @@ class FunctionsTest < Minitest::Test
     # check expected_caracteristics and centroids skills are compatible
     clusterer.vehicles[1][:skills] << 'needs_vehicle_1'
     clusterer.instance_variable_set(:@remaining_skills, clusterer.vehicles)
-    data_items.data_items[0][4][:skills] << 'needs_vehicle_1'
-    clusterer.instance_variable_set(:@data_set, data_items)
+    data_set.data_items[0][4][:skills] << 'needs_vehicle_1'
+    clusterer.instance_variable_set(:@data_set, data_set)
     clusterer.centroid_indices = [0, 1]
     assert_raises ArgumentError do
       clusterer.send(:calc_initial_centroids)
