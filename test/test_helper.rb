@@ -55,12 +55,12 @@ module Instance
       }
     ]
 
-    data_items = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { v_id: [], skills: [], days: ['all_days'] }],
+    data_set = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { v_id: [], skills: [], days: ['all_days'] }],
                                           [45.344334, 4.817731, 'point_2', { visits: 1 }, { v_id: [], skills: [], days: ['all_days'] }],
                                           [45.576412, 4.805614, 'point_3', { visits: 1 }, { v_id: [], skills: [], days: ['all_days'] }],
                                           [45.258324, 4.687322, 'point_4', { visits: 1 }, { v_id: [], skills: [], days: ['all_days'] }]])
 
-    [clusterer, data_items]
+    [clusterer, data_set]
   end
 
   def self.two_clusters_4_items_with_matrix
@@ -93,11 +93,11 @@ module Instance
       }
     ]
 
-    data_items = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { matrix_index: 1, v_id: [], skills: [], days: ['all_days'] }],
+    data_set = DataSet.new(data_items: [[45.604784, 4.758965, 'point_1', { visits: 1 }, { matrix_index: 1, v_id: [], skills: [], days: ['all_days'] }],
                                           [45.344334, 4.817731, 'point_2', { visits: 1 }, { matrix_index: 2, v_id: [], skills: [], days: ['all_days'] }],
                                           [45.576412, 4.805614, 'point_3', { visits: 1 }, { matrix_index: 3, v_id: [], skills: [], days: ['all_days'] }],
                                           [45.258324, 4.687322, 'point_4', { visits: 1 }, { matrix_index: 4, v_id: [], skills: [], days: ['all_days'] }]])
 
-    [clusterer, data_items]
+    [clusterer, data_set]
   end
 end

@@ -19,8 +19,8 @@ require './test/test_helper'
 
 class ClusteringTest < Minitest::Test
   def test_basic_clustering
-    clusterer, data_items = Instance.two_clusters_4_items
-    clusterer.build(data_items, :visits)
+    clusterer, data_set = Instance.two_clusters_4_items
+    clusterer.build(data_set, :visits)
 
     # right number of clusters generated
     assert_equal 2, clusterer.clusters.size
@@ -31,8 +31,8 @@ class ClusteringTest < Minitest::Test
   end
 
   def test_basic_clustering_with_matrix
-    clusterer, data_items = Instance.two_clusters_4_items_with_matrix
-    clusterer.build(data_items, :visits)
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :visits)
 
     # right number of clusters generated
     assert_equal 2, clusterer.clusters.size
@@ -43,15 +43,15 @@ class ClusteringTest < Minitest::Test
   end
 
   def test_with_skills
-    clusterer, data_items = Instance.two_clusters_4_items
-    clusterer.build(data_items, :visits)
+    clusterer, data_set = Instance.two_clusters_4_items
+    clusterer.build(data_set, :visits)
 
     generated_clusters = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[2] } }
     clusterer.vehicles.first[:skills] = ['vehicle1']
-    data_items.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:skills] = ['vehicle1']
-    data_items.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:skills] = ['vehicle1']
+    data_set.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:skills] = ['vehicle1']
+    data_set.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:skills] = ['vehicle1']
 
-    clusterer.build(data_items, :visits)
+    clusterer.build(data_set, :visits)
     assert(clusterer.clusters.any?{ |cluster|
       cluster.data_items.any?{ |item| item[2] == generated_clusters[0][0] } &&
         cluster.data_items.any?{ |item| item[2] == generated_clusters[1][0] }
@@ -59,15 +59,15 @@ class ClusteringTest < Minitest::Test
   end
 
   def test_with_sticky
-    clusterer, data_items = Instance.two_clusters_4_items
-    clusterer.build(data_items, :visits)
+    clusterer, data_set = Instance.two_clusters_4_items
+    clusterer.build(data_set, :visits)
 
     generated_clusters = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[2] } }
     clusterer.vehicles.first[:v_id] = ['vehicle1']
-    data_items.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:v_id] = ['vehicle1']
-    data_items.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:v_id] = ['vehicle1']
+    data_set.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:v_id] = ['vehicle1']
+    data_set.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:v_id] = ['vehicle1']
 
-    clusterer.build(data_items, :visits)
+    clusterer.build(data_set, :visits)
     assert(clusterer.clusters.any?{ |cluster|
       cluster.data_items.any?{ |item| item[2] == generated_clusters[0][0] } &&
         cluster.data_items.any?{ |item| item[2] == generated_clusters[1][0] }
@@ -76,22 +76,22 @@ class ClusteringTest < Minitest::Test
 
   def test_with_output
     Dir.mktmpdir('temp_', 'test/') { |tmpdir|
-      clusterer, data_items = Instance.two_clusters_4_items
+      clusterer, data_set = Instance.two_clusters_4_items
       clusterer.geojson_dump_folder = tmpdir
-      clusterer.build(data_items, :visits)
+      clusterer.build(data_set, :visits)
       refute_empty(Dir["#{tmpdir}/generated_cluster_*_iteration_*.geojson"], 'At least one geojson output should have been generated')
     }
   end
 
   def test_with_days
-    clusterer, data_items = Instance.two_clusters_4_items
+    clusterer, data_set = Instance.two_clusters_4_items
 
     clusterer.vehicles.first[:days] = ['mon']
-    data_items.data_items[0][4][:days] = ['mon']
-    data_items.data_items[1][4][:days] = ['mon']
-    expected = [data_items.data_items[0][2], data_items.data_items[1][2]].sort
+    data_set.data_items[0][4][:days] = ['mon']
+    data_set.data_items[1][4][:days] = ['mon']
+    expected = [data_set.data_items[0][2], data_set.data_items[1][2]].sort
 
-    clusterer.build(data_items, :visits)
+    clusterer.build(data_set, :visits)
     assert(clusterer.clusters.any?{ |cluster|
       cluster.data_items.collect{ |item| item[2] }.sort == expected
     })
@@ -213,14 +213,14 @@ class ClusteringTest < Minitest::Test
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
     # depending on the seed, sometimes it doesn't pass -- 1 out of 10
-    data_items, options, ratio = Marshal.load(File.binread('test/fixtures/avoid_capacities_overlap.bindump'))
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/avoid_capacities_overlap.bindump'))
 
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
     clusterer.max_iterations = options[:max_iterations]
     clusterer.distance_matrix = options[:distance_matrix]
     clusterer.vehicles = options[:clusters_infos]
 
-    clusterer.build(DataSet.new(data_items: data_items), options[:cut_symbol], ratio, options)
+    clusterer.build(data_set, options[:cut_symbol], ratio, options)
     clusterer.clusters.delete([])
 
     assert_equal 5, clusterer.clusters.size
