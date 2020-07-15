@@ -90,7 +90,7 @@ module Ai4r
         ### values ###
         @data_set = data_set
         @cut_symbol = cut_symbol
-        @unit_symbols = [cut_symbol]
+        @unit_symbols = [cut_symbol].compact
         @unit_symbols |= @vehicles.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles.any?{ |c| c[:capacities] }
         @number_of_clusters = [@vehicles.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
 
@@ -192,9 +192,8 @@ module Ai4r
           recompute_centroids
         end
 
-        if options[:last_iteration_balance_rate] || options[:last_iteration_no_strict_limitations]
+        if options[:last_iteration_balance_rate]
           @rate_balance = options[:last_iteration_balance_rate] if options[:last_iteration_balance_rate]
-          @strict_limitations = [] if options[:last_iteration_no_strict_limitations]
 
           update_cut_limit
 
@@ -328,8 +327,8 @@ module Ai4r
           # TODO: only consider the clusters that are "compatible" with this cluster -- i.e., they can serve the points of this cluster and vice-versa
           favorite_clusters = @centroids.map.with_index.select{ |c, i|
             the_units_that_matter.all?{ |unit| # cluster to be swapped should
-              c[3][unit] < 0.99 * @strict_limitations[violated_cluster][unit] && # be less loaded
-                @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit] && # have more limit
+              (@strict_limitations[violated_cluster][unit].nil? || c[3][unit] < 0.99 * @strict_limitations[violated_cluster][unit]) && # be less loaded
+                (@strict_limitations[i][unit].nil? || @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit]) && # have more limit
                 @clusters[violated_cluster].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[i]) } &&
                 @clusters[i].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[violated_cluster]) }
             } # and they should be able to serve eachothers's points
@@ -665,11 +664,11 @@ module Ai4r
       end
 
       def update_metrics(data_item, cluster_index)
-        @unit_symbols.each{ |unit|
-          @centroids[cluster_index][3][unit] += data_item[3][unit].to_f
+        data_item[3].each{ |unit, value|
+          @centroids[cluster_index][3][unit] += value.to_f
           next if unit != @cut_symbol
 
-          @total_assigned_cut_load += data_item[3][unit].to_f
+          @total_assigned_cut_load += value.to_f
           @percent_assigned_cut_load = @total_assigned_cut_load / @total_cut_load.to_f
           if !@apply_balancing && @centroids.all?{ |centroid| centroid[3][@cut_symbol].positive? }
             @apply_balancing = true
@@ -678,10 +677,8 @@ module Ai4r
       end
 
       def capactity_violation?(item, cluster_index)
-        return false if @strict_limitations.empty?
-
-        @centroids[cluster_index][3].any?{ |unit, value|
-          @strict_limitations[cluster_index][unit] && (value + item[3][unit].to_f > @strict_limitations[cluster_index][unit])
+        item[3].any?{ |unit, value|
+          @strict_limitations[cluster_index][unit] && (@centroids[cluster_index][3][unit] + value > @strict_limitations[cluster_index][unit])
         }
       end
 
