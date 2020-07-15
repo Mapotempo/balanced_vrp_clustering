@@ -29,7 +29,7 @@ module OverloadableFunctions
     return false if !(service_chars[:skills] - vehicle_chars[:skills]).empty?
 
     # if service and vehicle have no matching days
-    return false if (service_chars[:days] & vehicle_chars[:days]).empty?
+    return false if (service_chars[:day_skills] & vehicle_chars[:day_skills]).empty?
 
     true # if not, they are compatible
   end

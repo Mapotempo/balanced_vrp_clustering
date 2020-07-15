@@ -28,10 +28,10 @@ Initialize your clusterer tool c and provided needed data :
 ```
 vehicles = {
   "v_id": vehicle_id e.g. 'vehicle_1',
-  "days": list of available days e.g. ['monday', 'tuesday'] ,
   "depot": indice of corresponding depot in matrix, if any provided. Otherwise, [latitude, longitude] of vehicle depot,
   "capacities": { "unit_1": 10, "unit_2": 100 },
   "skills": list of skills e.g. ['big', 'heavy'],
+  "day_skills": list of available days -- e.g. ['monday', 'tuesday'],
   "duration": Total work duration. If duration is 0 for all vehicles, duration_to_from_depot calculation and cut_limit update are disabled.
   "total_work_days": Number of days the vehicle works (default: 1)
 }
@@ -50,7 +50,7 @@ data_items = items.collect{ |i|
   { "unit_1": i[:quantities]['unit_1'], "unit_2": i[:quantities]['unit_2'] },
   { "v_id": id of vehicle that should be assigned to this item if any,
     "skills": list of skills,
-    "days": list of available days,
+    "day_skills": list of available days -- e.g. ['monday', 'tuesday'],
     "matrix_index": only if any matrix was provided
   }
 }
