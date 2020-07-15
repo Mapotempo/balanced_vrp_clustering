@@ -60,30 +60,26 @@ module OverloadableFunctions
   def compute_limits(cut_symbol, cut_ratio, vehicles, data_items, entity = :vehicle)
     cumulated_metrics = Hash.new(0)
 
-    (@unit_symbols || [cut_symbol]).each{ |unit|
-      cumulated_metrics[unit] = data_items.collect{ |item| item[3][unit] || 0 }.reduce(&:+)
+    (@unit_symbols || (cut_symbol && [cut_symbol]))&.each{ |unit|
+      cumulated_metrics[unit] = data_items.sum{ |item| item[3][unit].to_f }
     }
 
-    strict_limits = if vehicles.none?{ |v_i| v_i[:capacities] }
-      []
-    else
-      vehicles.collect{ |vehicle|
-        s_l = { duration: vehicle[:total_work_time], visits: cumulated_metrics[:visits] }
-        cumulated_metrics.keys.each{ |unit|
-          s_l[unit] = (vehicle[:capacities].has_key?(unit) ? vehicle[:capacities][unit] : 0)
-        }
-        s_l
+    strict_limits = vehicles.collect{ |vehicle|
+      s_l = { duration: vehicle[:total_work_time] } # incase capacity for duration is not supplied
+      vehicle[:capacities].each{ |unit, limit|
+        s_l[unit] = limit
       }
-    end
+      s_l
+    }
 
-    total_work_time = vehicles.map{ |vehicle| vehicle[:total_work_time] }.reduce(&:+).to_f
-    metric_limits = if entity == :vehicle && total_work_time.positive?
-      vehicles.collect{ |vehicle|
-        { limit: cut_ratio * (cumulated_metrics[cut_symbol].to_f * (vehicle[:total_work_time] / total_work_time)) }
-      }
-    else
-      { limit: cut_ratio * (cumulated_metrics[cut_symbol] / vehicles.size) }
-    end
+    total_duration = vehicles.sum{ |vehicle| vehicle[:total_work_time].to_f }
+    metric_limits = if entity == :vehicle && total_duration.positive?
+                      vehicles.collect{ |vehicle|
+                        { limit: cut_ratio * cumulated_metrics[cut_symbol] * vehicle[:total_work_time] / total_duration }
+                      }
+                    else
+                      { limit: cut_ratio * cumulated_metrics[cut_symbol] / vehicles.size }
+                    end
 
     [strict_limits, metric_limits]
   end

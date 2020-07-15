@@ -30,10 +30,10 @@ vehicles = {
   "v_id": vehicle_id e.g. 'vehicle_1',
   "days": list of available days e.g. ['monday', 'tuesday'] ,
   "depot": indice of corresponding depot in matrix, if any provided. Otherwise, [latitude, longitude] of vehicle depot,
-  "capactities": { "unit_1": 10, "unit_2": 100 },
+  "capacities": { "unit_1": 10, "unit_2": 100 },
   "skills": list of skills e.g. ['big', 'heavy'],
-  "total_work_time": total work duration available for this vehicle, 0 if all vehicles are the same,
-  "total_work_days": total number of days this vehicle can work
+  "total_work_time": Total work duration. If duration is 0 for all vehicles, duration_to_from_depot calculation and cut_limit update are disabled.
+  "total_work_days": Number of days the vehicle works (default: 1)
 }
 c.vehicles = vehicles
 c.max_iterations = max_iterations
