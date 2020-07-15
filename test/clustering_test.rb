@@ -99,25 +99,14 @@ class ClusteringTest < Minitest::Test
 
   def test_infeasible_skills
     # the skills of the service does not exist in any of the vehicles
-    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/infeasible_skills.bindump'))
-
-    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-    clusterer.max_iterations = options[:max_iterations]
-    clusterer.distance_matrix = options[:distance_matrix]
-    clusterer.vehicles = options[:clusters_infos]
+    clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/infeasible_skills.bindump')
 
     assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
   end
 
   def test_division_by_nan
-    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/division_by_nan.bindump'))
+    clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/division_by_nan.bindump')
     # options[:seed] = 182581703914854297101438278871236808945
-
-    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-    clusterer.max_iterations = options[:max_iterations]
-    clusterer.distance_matrix = options[:distance_matrix]
-    clusterer.vehicles = options[:clusters_infos]
-    clusterer.centroid_indices = options[:centroid_indices] || []
 
     assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
   end
@@ -130,13 +119,8 @@ class ClusteringTest < Minitest::Test
       puts "Regularity trial: #{trial}/#{regularity_restart}"
       max_balance_deviation = 0
 
-      data_set, options, ratio = Marshal.load(File.binread('test/fixtures/cluster_balance.bindump'))
+      clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/cluster_balance.bindump')
       units = data_set.data_items.collect{ |i| i[3].keys }.flatten.uniq
-
-      clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-      clusterer.max_iterations = options[:max_iterations]
-      clusterer.distance_matrix = options[:distance_matrix]
-      clusterer.vehicles = options[:clusters_infos]
 
       while data_set.data_items.size > 100
         number_of_items_expected = data_set.data_items.size
@@ -197,12 +181,7 @@ class ClusteringTest < Minitest::Test
   def test_length_centroid
     # from test_length_centroid in optimizer-api project
     # more vehicles than data_items..
-    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/length_centroid.bindump'))
-
-    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-    clusterer.max_iterations = options[:max_iterations]
-    clusterer.distance_matrix = options[:distance_matrix]
-    clusterer.vehicles = options[:clusters_infos]
+    clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/length_centroid.bindump')
 
     clusterer.build(data_set, options[:cut_symbol], ratio, options)
     clusterer.clusters.delete([])
@@ -213,12 +192,7 @@ class ClusteringTest < Minitest::Test
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
     # depending on the seed, sometimes it doesn't pass -- 1 out of 10
-    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/avoid_capacities_overlap.bindump'))
-
-    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-    clusterer.max_iterations = options[:max_iterations]
-    clusterer.distance_matrix = options[:distance_matrix]
-    clusterer.vehicles = options[:clusters_infos]
+    clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/avoid_capacities_overlap.bindump')
 
     clusterer.build(data_set, options[:cut_symbol], ratio, options)
     clusterer.clusters.delete([])
