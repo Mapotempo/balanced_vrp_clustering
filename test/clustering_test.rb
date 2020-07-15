@@ -86,9 +86,9 @@ class ClusteringTest < Minitest::Test
   def test_with_days
     clusterer, data_set = Instance.two_clusters_4_items
 
-    clusterer.vehicles.first[:days] = ['mon']
-    data_set.data_items[0][4][:days] = ['mon']
-    data_set.data_items[1][4][:days] = ['mon']
+    clusterer.vehicles.first[:day_skills] = ['mon']
+    data_set.data_items[0][4][:day_skills] = ['mon']
+    data_set.data_items[1][4][:day_skills] = ['mon']
     expected = [data_set.data_items[0][2], data_set.data_items[1][2]].sort
 
     clusterer.build(data_set, :visits)

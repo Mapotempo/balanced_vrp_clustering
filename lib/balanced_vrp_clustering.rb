@@ -58,7 +58,7 @@ module Ai4r
         #    index 1 : longitude
         #    index 2 : item_id
         #    index 3 : unit_quantities -> for each unit, quantity associated to this item
-        #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
+        #    index 4 : characteristics -> { v_id: sticky_vehicle_ids, skills: skills, day_skills: day_skills, matrix_index: matrix_index }
 
         # First of all, set and display the seed
         options[:seed] ||= Random.new_seed
@@ -119,7 +119,7 @@ module Ai4r
           item[4].default = nil
           item[4][:v_id] ||= []
           item[4][:skills] ||= []
-          item[4][:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+          item[4][:day_skills] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
           item[3][:visits] ||= 1
           item[4][:centroid_weights] = {
             limit: Array.new(@number_of_clusters, 1),
@@ -130,13 +130,13 @@ module Ai4r
         @vehicles.each{ |vehicle_info|
           vehicle_info[:total_work_days] ||= 1
           vehicle_info[:skills] ||= []
-          vehicle_info[:days] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+          vehicle_info[:day_skills] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
         }
 
         # Initialise the [:centroid_weights][:compatibility] of data_items which need specifique vehicles
         # These weights are increased if the data_item is not assigned to its closest clusters due to incompatibility
         compatibility_groups = Hash.new{ [] }
-        @data_set.data_items.group_by{ |d_i| [d_i[4][:v_id], d_i[4][:skills], d_i[4][:days]] }.each{ |_skills, group|
+        @data_set.data_items.group_by{ |d_i| [d_i[4][:v_id], d_i[4][:skills], d_i[4][:day_skills]] }.each{ |_skills, group|
           compatibility_groups[@vehicles.collect{ |vehicle_info| @compatibility_function.call(group[0], [nil, nil, nil, nil, vehicle_info]) ? 1 : 0 }] += group
         }
         @expected_n_visits = @data_set.data_items.sum{ |d_i| d_i[3][:visits] } / @number_of_clusters.to_f
@@ -484,7 +484,7 @@ module Ai4r
         #    index 1 : longitude
         #    index 2 : item_id
         #    index 3 : unit_fullfillment -> for each unit, quantity contained in corresponding cluster
-        #    index 4 : characterisits -> { v_id: sticky_vehicle_ids, skills: skills, days: day_skills, matrix_index: matrix_index }
+        #    index 4 : characterisits -> { v_id: sticky_vehicle_ids, skills: skills, day_skills: day_skills, matrix_index: matrix_index }
         raise ArgumentError, 'No vehicles provided' if @remaining_skills.nil?
 
         case populate_method
