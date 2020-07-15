@@ -32,6 +32,18 @@ require 'find'
 include Ai4r::Data
 
 module Instance
+  def self.load_clusterer(filepath)
+    data_set, options, ratio = Marshal.load(File.binread(filepath))
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+    clusterer.centroid_indices = options[:centroid_indices] || []
+
+    [clusterer, data_set, options, ratio]
+  end
+
   def self.two_clusters_4_items
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
     clusterer.max_iterations = 300
