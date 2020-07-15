@@ -54,7 +54,7 @@ module Instance
         capacities: { visits: 6 },
         skills: [],
         days: ['all_days'],
-        total_work_time: 0,
+        duration: 0,
         total_work_days: 1
       }, {
         v_id: ['vehicle_1'],
@@ -62,7 +62,7 @@ module Instance
         capacities: { visits: 6 },
         skills: [],
         days: ['all_days'],
-        total_work_time: 0,
+        duration: 0,
         total_work_days: 1
       }
     ]
@@ -92,7 +92,7 @@ module Instance
         capacities: { visits: 6 },
         skills: [],
         days: ['all_days'],
-        total_work_time: 0,
+        duration: 0,
         total_work_days: 1
       }, {
         v_id: ['vehicle_1'],
@@ -100,7 +100,7 @@ module Instance
         capacities: { visits: 6 },
         skills: [],
         days: ['all_days'],
-        total_work_time: 0,
+        duration: 0,
         total_work_days: 1
       }
     ]

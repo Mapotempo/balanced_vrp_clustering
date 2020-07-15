@@ -52,14 +52,14 @@ class FunctionsTest < Minitest::Test
 
   def test_compute_limits_with_work_time
     clusterer, data_set = Instance.two_clusters_4_items
-    clusterer.vehicles[0][:total_work_time] = 1
-    clusterer.vehicles[1][:total_work_time] = 3
+    clusterer.vehicles[0][:duration] = 1
+    clusterer.vehicles[1][:duration] = 3
 
     strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_set.data_items)
     clusterer.vehicles.size.times.each{ |cluster_index|
-      assert_equal clusterer.vehicles[cluster_index][:total_work_time], strict_limit[cluster_index][:duration]
+      assert_equal clusterer.vehicles[cluster_index][:duration], strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
-      assert_equal clusterer.vehicles[cluster_index][:total_work_time], cut_limit[cluster_index][:limit]
+      assert_equal clusterer.vehicles[cluster_index][:duration], cut_limit[cluster_index][:limit]
     }
   end
 
