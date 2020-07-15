@@ -32,7 +32,7 @@ vehicles = {
   "depot": indice of corresponding depot in matrix, if any provided. Otherwise, [latitude, longitude] of vehicle depot,
   "capacities": { "unit_1": 10, "unit_2": 100 },
   "skills": list of skills e.g. ['big', 'heavy'],
-  "total_work_time": Total work duration. If duration is 0 for all vehicles, duration_to_from_depot calculation and cut_limit update are disabled.
+  "duration": Total work duration. If duration is 0 for all vehicles, duration_to_from_depot calculation and cut_limit update are disabled.
   "total_work_days": Number of days the vehicle works (default: 1)
 }
 c.vehicles = vehicles

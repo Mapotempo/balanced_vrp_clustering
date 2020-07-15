@@ -65,17 +65,17 @@ module OverloadableFunctions
     }
 
     strict_limits = vehicles.collect{ |vehicle|
-      s_l = { duration: vehicle[:total_work_time] } # incase capacity for duration is not supplied
+      s_l = { duration: vehicle[:duration] } # incase capacity for duration is not supplied
       vehicle[:capacities].each{ |unit, limit|
         s_l[unit] = limit
       }
       s_l
     }
 
-    total_duration = vehicles.sum{ |vehicle| vehicle[:total_work_time].to_f }
+    total_duration = vehicles.sum{ |vehicle| vehicle[:duration].to_f }
     metric_limits = if entity == :vehicle && total_duration.positive?
                       vehicles.collect{ |vehicle|
-                        { limit: cut_ratio * cumulated_metrics[cut_symbol] * vehicle[:total_work_time] / total_duration }
+                        { limit: cut_ratio * cumulated_metrics[cut_symbol] * vehicle[:duration] / total_duration }
                       }
                     else
                       { limit: cut_ratio * cumulated_metrics[cut_symbol] / vehicles.size }

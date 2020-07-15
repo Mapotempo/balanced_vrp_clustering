@@ -598,7 +598,7 @@ module Ai4r
 
       def compute_vehicle_work_time_with
         coef = @centroids.map.with_index{ |centroid, index|
-          @vehicles[index][:total_work_time] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles[index][:total_work_days])
+          @vehicles[index][:duration] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles[index][:total_work_days])
         }.min
 
         # TODO: The following filter is there to not to affect the existing functionality.
@@ -612,7 +612,7 @@ module Ai4r
                end
 
         @centroids.map.with_index{ |centroid, index|
-          @vehicles[index][:total_work_time] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
+          @vehicles[index][:duration] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
         }
       end
 
