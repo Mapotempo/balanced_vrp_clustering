@@ -3,4 +3,4 @@ cache: bundler
 rvm:
   - 2.3.3
 script:
-  - bundle exec rake test
+  - bundle exec rake test TESTOPTS="--verbose"
