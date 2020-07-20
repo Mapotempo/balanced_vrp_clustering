@@ -150,18 +150,21 @@ module Ai4r
 
         @limit_violation_coefficient = Array.new(@number_of_clusters, 1)
 
+        calc_initial_centroids
+
         if @cut_symbol
           @total_cut_load = @data_set.data_items.inject(0) { |sum, d| sum + d[3][@cut_symbol].to_f }
           if @total_cut_load.zero?
             @cut_symbol = nil # Disable balancing because there is no point
           else
-            @data_set.data_items.sort_by! { |x| -x[3][@cut_symbol].to_f }
+            # first @centroids.length data_items correspond to centroids, they should remain at the begining of the set
             data_length = @data_set.data_items.size
-            @data_set.data_items[(data_length * 0.1).to_i..(data_length * 0.90).to_i] = @data_set.data_items[(data_length * 0.1).to_i..(data_length * 0.90).to_i].shuffle!
+            @data_set.data_items[@centroids.length..-1] = @data_set.data_items[@centroids.length..-1].sort_by { |x| -x[3][@cut_symbol].to_f }
+            range_end = (data_length * 0.9).to_i
+            range_begin = [(@centroids.length + data_length * 0.1).to_i, range_end].min
+            @data_set.data_items[range_begin..range_end] = @data_set.data_items[range_begin..range_end].shuffle
           end
         end
-
-        calc_initial_centroids
 
         @rate_balance = 0.0
         until stop_criteria_met || @iteration >= @max_iterations
