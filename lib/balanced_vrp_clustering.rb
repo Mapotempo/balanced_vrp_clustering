@@ -337,7 +337,7 @@ module Ai4r
 
           # TODO: elimination/determination of units per cluster should be done at the beginning
           # Each centroid should know what matters to them.
-          the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v}.keys
+          the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v }.keys
 
           # TODO: only consider the clusters that are "compatible" with this cluster -- i.e., they can serve the points of this cluster and vice-versa
           favorite_clusters = @centroids.map.with_index.select{ |c, _i|
@@ -346,12 +346,26 @@ module Ai4r
               !@centroids[violated_cluster][4][:capacities][unit].nil? && (limit.nil? || limit > @centroids[violated_cluster][4][:capacities][unit])
             }
           }.select{ |c, i|
-            the_units_that_matter.all?{ |unit| # cluster to be swapped should
+            clusters_can_be_swapped = the_units_that_matter.all?{ |unit| # cluster to be swapped should
               (@strict_limitations[violated_cluster][unit].nil? || c[3][unit] < 0.98 * @strict_limitations[violated_cluster][unit]) && # be less loaded
                 (@strict_limitations[i][unit].nil? || @strict_limitations[i][unit] >= 1.02 * @centroids[violated_cluster][3][unit]) && # have more limit
                 @clusters[violated_cluster].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[i]) } &&
                 @clusters[i].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[violated_cluster]) }
             } # and they should be able to serve eachothers's points
+
+            next unless clusters_can_be_swapped
+
+            if Helper.flying_distance(@centroids[i][4][:depot][:coordinates], @centroids[violated_cluster][4][:depot][:coordinates]) < 500
+              true
+            else
+              violated_distance_from_and_to_depot = @clusters[violated_cluster].data_items.map{ |d| d[4][:duration_from_and_to_depot][i] }.reduce(&:+) / @clusters[violated_cluster].data_items.size.to_f
+              favorite_distance_from_and_to_depot = @clusters[i].data_items.map{ |d| d[4][:duration_from_and_to_depot][violated_cluster] }.reduce(&:+) / @clusters[i].data_items.size.to_f
+
+              (violated_distance_from_and_to_depot < @centroids[violated_cluster][4][:duration_from_and_to_depot] ||
+                favorite_distance_from_and_to_depot < @centroids[i][4][:duration_from_and_to_depot]) ||
+                (violated_distance_from_and_to_depot < 2 * @centroids[violated_cluster][4][:duration_from_and_to_depot] &&
+                  favorite_distance_from_and_to_depot < 2 * @centroids[i][4][:duration_from_and_to_depot])
+            end
           }
 
           if favorite_clusters.empty?
