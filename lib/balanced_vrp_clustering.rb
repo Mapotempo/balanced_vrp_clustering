@@ -128,6 +128,7 @@ module Ai4r
         }
 
         @vehicles.each{ |vehicle_info|
+          vehicle_info[:id] = [vehicle_info[:id]].flatten if vehicle_info[:id]
           vehicle_info[:total_work_days] ||= 1
           vehicle_info[:skills] ||= []
           vehicle_info[:day_skills] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
@@ -761,7 +762,7 @@ module Ai4r
               stroke: '#000000',
               'stroke-opacity': 0,
               'stroke-width': 10,
-              name: "#{@centroids[c_index][4][:v_id]&.join(',')}_center",
+              name: "#{@centroids[c_index][4][:id]&.join(',')}_center",
               lat_lon: @centroids[c_index][0..1].join(','),
               lon_lat: @centroids[c_index][0..1].reverse.join(','),
               matrix_index: @centroids[c_index][3][:matrix_index],
@@ -779,7 +780,7 @@ module Ai4r
             properties: {
               color: color,
               fill: color,
-              name: @centroids[c_index][4][:v_id]&.join(','),
+              name: @centroids[c_index][4][:id]&.join(','),
               lat_lon: @centroids[c_index][0..1].join(','),
               lon_lat: @centroids[c_index][0..1].reverse.join(','),
               matrix_index: @centroids[c_index][3][:matrix_index],

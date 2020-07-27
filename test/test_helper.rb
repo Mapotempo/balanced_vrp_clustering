@@ -49,7 +49,7 @@ module Instance
     clusterer.max_iterations = 300
     clusterer.vehicles = [
       {
-        v_id: ['vehicle_0'],
+        id: ['vehicle_0'],
         depot: [45.604784, 4.758965],
         capacities: { visits: 6 },
         skills: [],
@@ -57,7 +57,7 @@ module Instance
         duration: 0,
         total_work_days: 1
       }, {
-        v_id: ['vehicle_1'],
+        id: ['vehicle_1'],
         depot: [45.576412, 4.805614],
         capacities: { visits: 6 },
         skills: [],
@@ -87,7 +87,7 @@ module Instance
     ]
     clusterer.vehicles = [
       {
-        v_id: ['vehicle_0'],
+        id: ['vehicle_0'],
         depot: [0],
         capacities: { visits: 6 },
         skills: [],
@@ -95,7 +95,7 @@ module Instance
         duration: 0,
         total_work_days: 1
       }, {
-        v_id: ['vehicle_1'],
+        id: ['vehicle_1'],
         depot: [0],
         capacities: { visits: 6 },
         skills: [],
