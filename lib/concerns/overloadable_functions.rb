@@ -23,7 +23,7 @@ module OverloadableFunctions
   def compatible_characteristics?(service_chars, vehicle_chars)
     # Compatile service and vehicle
     # if the vehicle cannot serve the service due to sticky_vehicle_id
-    return false if !service_chars[:v_id].empty? && (service_chars[:v_id] & vehicle_chars[:v_id]).empty?
+    return false if !service_chars[:v_id].empty? && (service_chars[:v_id] & vehicle_chars[:id]).empty?
 
     # if the service needs a skill that the vehicle doesn't have
     return false if !(service_chars[:skills] - vehicle_chars[:skills]).empty?

@@ -27,7 +27,7 @@ Initialize your clusterer tool c and provided needed data :
 
 ```
 vehicles = {
-  "v_id": vehicle_id e.g. 'vehicle_1',
+  "id": vehicle_id e.g. 'vehicle_1',
   "depot": indice of corresponding depot in matrix, if any provided. Otherwise, [latitude, longitude] of vehicle depot,
   "capacities": { "unit_1": 10, "unit_2": 100 },
   "skills": list of skills e.g. ['big', 'heavy'],

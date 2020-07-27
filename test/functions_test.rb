@@ -21,22 +21,22 @@ class FunctionsTest < Minitest::Test
   include OverloadableFunctions
 
   def test_compatible_characteristics
-    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['all_days'] }, { v_id: [], skills: [], day_skills: ['all_days'] })
+    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['all_days'] }, { id: [], skills: [], day_skills: ['all_days'] })
 
     # v_id
-    refute compatible_characteristics?({ v_id: ['v1'], skills: [], day_skills: ['all_days'] }, { v_id: [], skills: [], day_skills: ['all_days'] })
-    assert compatible_characteristics?({ v_id: ['v1'], skills: [], day_skills: ['all_days'] }, { v_id: ['v1'], skills: [], day_skills: ['all_days'] })
-    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['all_days'] }, { v_id: ['v1'], skills: [], day_skills: ['all_days'] })
+    refute compatible_characteristics?({ v_id: ['v1'], skills: [], day_skills: ['all_days'] }, { id: [], skills: [], day_skills: ['all_days'] })
+    assert compatible_characteristics?({ v_id: ['v1'], skills: [], day_skills: ['all_days'] }, { id: ['v1'], skills: [], day_skills: ['all_days'] })
+    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['all_days'] }, { id: ['v1'], skills: [], day_skills: ['all_days'] })
 
     # skills
-    refute compatible_characteristics?({ v_id: [], skills: ['sk1'], day_skills: ['all_days'] }, { v_id: [], skills: [], day_skills: ['all_days'] })
-    assert compatible_characteristics?({ v_id: [], skills: ['sk1'], day_skills: ['all_days'] }, { v_id: [], skills: ['sk1'], day_skills: ['all_days'] })
-    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['all_days'] }, { v_id: [], skills: ['sk1'], day_skills: ['all_days'] })
+    refute compatible_characteristics?({ v_id: [], skills: ['sk1'], day_skills: ['all_days'] }, { id: [], skills: [], day_skills: ['all_days'] })
+    assert compatible_characteristics?({ v_id: [], skills: ['sk1'], day_skills: ['all_days'] }, { id: [], skills: ['sk1'], day_skills: ['all_days'] })
+    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['all_days'] }, { id: [], skills: ['sk1'], day_skills: ['all_days'] })
 
     # days
-    refute compatible_characteristics?({ v_id: [], skills: [], day_skills: ['other_days'] }, { v_id: [], skills: [], day_skills: ['all_days'] })
-    refute compatible_characteristics?({ v_id: [], skills: [], day_skills: ['monday', 'tuesday'] }, { v_id: [], skills: [], day_skills: ['wednesday', 'thursday'] })
-    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['monday', 'tuesday'] }, { v_id: [], skills: [], day_skills: ['tuesday', 'thursday'] })
+    refute compatible_characteristics?({ v_id: [], skills: [], day_skills: ['other_days'] }, { id: [], skills: [], day_skills: ['all_days'] })
+    refute compatible_characteristics?({ v_id: [], skills: [], day_skills: ['monday', 'tuesday'] }, { id: [], skills: [], day_skills: ['wednesday', 'thursday'] })
+    assert compatible_characteristics?({ v_id: [], skills: [], day_skills: ['monday', 'tuesday'] }, { id: [], skills: [], day_skills: ['tuesday', 'thursday'] })
   end
 
   def test_compute_limits

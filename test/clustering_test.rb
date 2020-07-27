@@ -63,7 +63,7 @@ class ClusteringTest < Minitest::Test
     clusterer.build(data_set, :visits)
 
     generated_clusters = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[2] } }
-    clusterer.vehicles.first[:v_id] = ['vehicle1']
+    clusterer.vehicles.first[:id] = ['vehicle1']
     data_set.data_items.find{ |item| item[2] == generated_clusters[0][0] }[4][:v_id] = ['vehicle1']
     data_set.data_items.find{ |item| item[2] == generated_clusters[1][0] }[4][:v_id] = ['vehicle1']
 
