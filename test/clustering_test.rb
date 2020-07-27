@@ -186,7 +186,7 @@ class ClusteringTest < Minitest::Test
     clusterer.build(data_set, options[:cut_symbol], ratio, options)
     clusterer.clusters.delete([])
 
-    assert_equal 2, clusterer.clusters.size
+    assert_equal 2, clusterer.clusters.size, 'There are only 2 data_items, should have at most 2 non-empty clusters.'
   end
 
   def test_avoid_capacities_overlap
