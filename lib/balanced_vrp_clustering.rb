@@ -318,6 +318,7 @@ module Ai4r
       end
 
       def swap_a_centroid_with_limit_violation
+        already_swapped_a_centroid = false
         @clusters_with_limit_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
           break if preferred_clusters.empty?
 
@@ -340,6 +341,8 @@ module Ai4r
             @limit_violation_coefficient.collect!.with_index{ |c, i| (i == violated_cluster) ? c : c * 0.98 } # update_limit_violation_coefficient
             next
           end
+
+          next if already_swapped_a_centroid
 
           favorite_cluster = favorite_clusters.min_by{ |c, index|
             the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[index][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
@@ -369,7 +372,7 @@ module Ai4r
           @limit_violation_coefficient[favorite_cluster] = swap_safe[3]
 
           @logger&.debug "swapped location of #{violated_cluster + 1}th cluster with #{favorite_cluster + 1}th cluster"
-          break # swap only one at a time
+          already_swapped_a_centroid = true # break # swap only one at a time
         }
 
         @clusters_with_limit_violation.each(&:clear)
