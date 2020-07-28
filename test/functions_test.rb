@@ -43,7 +43,7 @@ class FunctionsTest < Minitest::Test
     clusterer, data_items = Instance.two_clusters_4_items
 
     strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_items.data_items)
-    (0..clusterer.vehicles.size - 1).each{ |cluster_index|
+    clusterer.vehicles.size.times.each{ |cluster_index|
       assert_equal 0, strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
       assert_equal 2, cut_limit[:limit]
@@ -56,7 +56,7 @@ class FunctionsTest < Minitest::Test
     clusterer.vehicles[1][:total_work_time] = 3
 
     strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_items.data_items)
-    (0..clusterer.vehicles.size - 1).each{ |cluster_index|
+    clusterer.vehicles.size.times.each{ |cluster_index|
       assert_equal clusterer.vehicles[cluster_index][:total_work_time], strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
       assert_equal clusterer.vehicles[cluster_index][:total_work_time], cut_limit[cluster_index][:limit]

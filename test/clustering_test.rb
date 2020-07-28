@@ -80,47 +80,72 @@ class ClusteringTest < Minitest::Test
     clusterer.vehicles.first[:days] = ['mon']
     data_items.data_items[0][4][:days] = ['mon']
     data_items.data_items[1][4][:days] = ['mon']
-    expected = [data_items.data_items[0][2], data_items.data_items[1][2]]
+    expected = [data_items.data_items[0][2], data_items.data_items[1][2]].sort
 
     clusterer.build(data_items, :visits)
     assert(clusterer.clusters.any?{ |cluster|
-      cluster.data_items.collect{ |item| item[2] } == expected
+      cluster.data_items.collect{ |item| item[2] }.sort == expected
     })
+  end
+
+  def test_infeasible_skills
+    # the skills of the service does not exist in any of the vehicles
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/infeasible_skills.bindump'))
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+
+    assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
+  end
+
+  def test_division_by_nan
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/division_by_nan.bindump'))
+    # options[:seed] = 182581703914854297101438278871236808945
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+    clusterer.centroid_indices = options[:centroid_indices] || []
+
+    assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
   end
 
   def test_cluster_balance
     # from test_cluster_balance in optimizer-api project
-    regularity_restart = 5
+    regularity_restart = 6
     balance_deviations = []
     (1..regularity_restart).each{ |trial|
       puts "Regularity trial: #{trial}/#{regularity_restart}"
       max_balance_deviation = 0
 
-      vehicles = Marshal.load(File.binread('test/fixtures/cluster_balance_vehicles_infos.bindump'))
-      data_set = Marshal.load(File.binread('test/fixtures/cluster_balance_data_set.bindump'))
+      data_set, options, ratio = Marshal.load(File.binread('test/fixtures/cluster_balance.bindump'))
+      units = data_set.data_items.collect{ |i| i[3].keys }.flatten.uniq
 
       clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-      clusterer.max_iterations = 300
-      clusterer.distance_matrix = Marshal.load(File.binread('test/fixtures/cluster_balance_distance_matrix.bindump'))
+      clusterer.max_iterations = options[:max_iterations]
+      clusterer.distance_matrix = options[:distance_matrix]
+      clusterer.vehicles = options[:clusters_infos]
 
-      test_goes_on = true
-      while test_goes_on
+      while data_set.data_items.size > 100
         number_of_items_expected = data_set.data_items.size
 
         total_load_by_units = Hash.new(0)
-        data_set.data_items.each{ |item| item[3].each{ |unit, quantity| total_load_by_units[unit] += quantity } }
+        data_set.data_items.each{ |item| item[3].each{ |unit, quantity| total_load_by_units[unit] += quantity if units.include? unit} }
         # Adapt each vehicle capacity according to items to clusterize
-        vehicles.each{ |v_i|
+        clusterer.vehicles.each{ |v_i|
           v_i[:capacities] = {}
           total_load_by_units.collect{ |unit, quantity|
             v_i[:capacities][unit] = quantity * 0.65
           }
         }
-        clusterer.vehicles = vehicles
 
-        clusterer.build(data_set, :duration, 1.0, entity: :vehicle)
+        clusterer.build(data_set, options[:cut_symbol], ratio, entity: :vehicle)
+
         repartition = clusterer.clusters.collect{ |c| c.data_items.size }
-        puts "#{number_of_items_expected} items spread in into #{repartition}"
+        puts "#{number_of_items_expected} items divided in into #{repartition}"
         durations = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[3][:duration] }.reduce(&:+) }
 
         assert_equal 2, clusterer.clusters.size, 'The number of clusters is not correct'
@@ -128,8 +153,6 @@ class ClusteringTest < Minitest::Test
         assert_equal data_set.data_items.collect{ |i| i[3][:duration] }.reduce(&:+), durations.reduce(&:+), 'The sum of service durations is not correct'
 
         max_balance_deviation = [max_balance_deviation, durations.max.to_f / durations.reduce(&:+) * 2 - 1].max
-
-        test_goes_on = false if clusterer.clusters.collect{ |c| c.data_items.size }.min < 100
 
         data_set.data_items.delete_if{ |item| clusterer.clusters.first.data_items.none?{ |i| i[2] == item[2] } }
       end
@@ -149,40 +172,55 @@ class ClusteringTest < Minitest::Test
         condition: balance_deviations.count{ |max_dev| max_dev > 0.21 } <= (regularity_restart * 0.20).ceil,
         message: 'The maximum balance deviation sould not be larger than 21% for more than 20% of the trials.'
       }, {
-        condition: balance_deviations.count{ |max_dev| max_dev > 0.17 } <= (regularity_restart * 0.35).ceil,
-        message: 'The maximum balance deviation sould not be larger than 17% for more than 35% of the trials.'
+        condition: balance_deviations.count{ |max_dev| max_dev > 0.185 } <= (regularity_restart * 0.35).ceil,
+        message: 'The maximum balance deviation sould not be larger than 18.5% for more than 35% of the trials.'
       }, {
-        condition: balance_deviations.count{ |max_dev| max_dev <= 0.135 } >= (regularity_restart * 0.45).floor,
-        message: 'The maximum balance deviation sould be less than 13.5% most of the time -- >45% of the trials.'
+        condition: balance_deviations.count{ |max_dev| max_dev <= 0.165 } >= (regularity_restart * 0.45).floor,
+        message: 'The maximum balance deviation sould be less than 16.5% most of the time -- >45% of the trials.'
       }
     ]
 
-    puts balance_deviations.collect{ |i| i.round(3) }, level: :fatal if asserts.any?{ |assert| !assert[:condition] }
+    puts balance_deviations.collect{ |i| i.round(3) }.sort.join(', ') if asserts.any?{ |assert| !assert[:condition] }
 
-    asserts.each { |assert|
-      assert assert[:condition], assert[:message]
-    }
+    asserts.each { |check| assert check[:condition], check[:message] }
+  end
+
+  def test_length_centroid
+    # from test_length_centroid in optimizer-api project
+    # more vehicles than data_items..
+    data_set, options, ratio = Marshal.load(File.binread('test/fixtures/length_centroid.bindump'))
+
+    clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
+
+    clusterer.build(data_set, options[:cut_symbol], ratio, options)
+    clusterer.clusters.delete([])
+
+    assert_equal 2, clusterer.clusters.size
   end
 
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
-    data_set = Marshal.load(File.binread('test/fixtures/avoid_overlap_data_set.bindump'))
+    # depending on the seed, sometimes it doesn't pass -- 1 out of 10
+    data_items, options, ratio = Marshal.load(File.binread('test/fixtures/avoid_capacities_overlap.bindump'))
 
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
-    clusterer.max_iterations = 300
-    clusterer.vehicles = Marshal.load(File.binread('test/fixtures/avoid_overlap_vehicles_infos.bindump'))
-    clusterer.distance_matrix = Marshal.load(File.binread('test/fixtures/avoid_overlap_distance_matrix.bindump'))
+    clusterer.max_iterations = options[:max_iterations]
+    clusterer.distance_matrix = options[:distance_matrix]
+    clusterer.vehicles = options[:clusters_infos]
 
-    clusterer.build(data_set, :duration, 1.0, entity: :vehicle)
+    clusterer.build(DataSet.new(data_items: data_items), options[:cut_symbol], ratio, options)
+    clusterer.clusters.delete([])
 
     assert_equal 5, clusterer.clusters.size
 
-    assert clusterer.clusters.collect{ |cluster|
-      cluster.data_items.collect{ |item| item[3][:kg] * item[3][:visits_number] }.reduce(&:+)
-    }.select.with_index{ |value, i| value > clusterer.vehicles[i][:capacities][:qte] }.size <= 1
-
-    assert clusterer.clusters.collect{ |cluster|
-      cluster.data_items.collect{ |item| item[3][:qte] * item[3][:visits_number] }.reduce(&:+)
-    }.select.with_index{ |value, i| value > clusterer.vehicles[i][:capacities][:qte] }.size <= 1
+    %i[kg qte].each{ |unit|
+      assert_operator clusterer.clusters.map.with_index.count{ |cluster, i|
+        cluster.data_items.sum{ |item| item[3][unit] } > clusterer.vehicles[i][:capacities][unit]
+      }, :<=, 1
+    }
   end
+
 end
