@@ -327,10 +327,15 @@ module Ai4r
           the_units_that_matter = @centroids[violated_cluster][3].select{ |i, v| i && v.positive? }.keys & @strict_limitations[violated_cluster].select{ |i, v| i && v}.keys
 
           # TODO: only consider the clusters that are "compatible" with this cluster -- i.e., they can serve the points of this cluster and vice-versa
-          favorite_clusters = @centroids.map.with_index.select{ |c, i|
+          favorite_clusters = @centroids.map.with_index.select{ |c, _i|
+            the_units_that_matter.any?{ |unit|
+              limit = c[4][:capacities][unit]
+              !@centroids[violated_cluster][4][:capacities][unit].nil? && (limit.nil? || limit > @centroids[violated_cluster][4][:capacities][unit])
+            }
+          }.select{ |c, i|
             the_units_that_matter.all?{ |unit| # cluster to be swapped should
-              (@strict_limitations[violated_cluster][unit].nil? || c[3][unit] < 0.99 * @strict_limitations[violated_cluster][unit]) && # be less loaded
-                (@strict_limitations[i][unit].nil? || @strict_limitations[i][unit] >= 1.01 * @centroids[violated_cluster][3][unit]) && # have more limit
+              (@strict_limitations[violated_cluster][unit].nil? || c[3][unit] < 0.98 * @strict_limitations[violated_cluster][unit]) && # be less loaded
+                (@strict_limitations[i][unit].nil? || @strict_limitations[i][unit] >= 1.02 * @centroids[violated_cluster][3][unit]) && # have more limit
                 @clusters[violated_cluster].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[i]) } &&
                 @clusters[i].data_items.all?{ |d_i| @compatibility_function.call(d_i, @centroids[violated_cluster]) }
             } # and they should be able to serve eachothers's points
