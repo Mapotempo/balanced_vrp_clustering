@@ -354,16 +354,19 @@ module Ai4r
           swap_safe = [
             @centroids[violated_cluster][0..2],
             @centroids[violated_cluster][4][:matrix_index],
-            @centroids[violated_cluster][4][:duration_from_and_to_depot]
+            @centroids[violated_cluster][4][:duration_from_and_to_depot],
+            @limit_violation_coefficient[violated_cluster]
           ] # lat lon point_id and matrix_index duration_from_and_to_depot if exists
 
           @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
           @centroids[violated_cluster][4][:matrix_index] = @centroids[favorite_cluster][4][:matrix_index]
           @centroids[violated_cluster][4][:duration_from_and_to_depot] = @centroids[favorite_cluster][4][:duration_from_and_to_depot]
+          @limit_violation_coefficient[violated_cluster] = @limit_violation_coefficient[favorite_cluster]
 
           @centroids[favorite_cluster][0..2] = swap_safe[0]
           @centroids[favorite_cluster][4][:matrix_index] = swap_safe[1]
           @centroids[favorite_cluster][4][:duration_from_and_to_depot] = swap_safe[2]
+          @limit_violation_coefficient[favorite_cluster] = swap_safe[3]
 
           @logger&.debug "swapped location of #{violated_cluster + 1}th cluster with #{favorite_cluster + 1}th cluster"
           break # swap only one at a time
