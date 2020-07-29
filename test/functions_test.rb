@@ -46,20 +46,22 @@ class FunctionsTest < Minitest::Test
     clusterer.vehicles.size.times.each{ |cluster_index|
       assert_equal 0, strict_limit[cluster_index][:duration]
       assert_equal 6, strict_limit[cluster_index][:visits]
-      assert_equal 2, cut_limit[:limit]
+      assert_equal 2, cut_limit[cluster_index][:limit]
     }
   end
 
-  def test_compute_limits_with_work_time
+  def test_compute_limits_with_work_time_and_balancing_visits
     clusterer, data_set = Instance.two_clusters_4_items
     clusterer.vehicles[0][:duration] = 1
     clusterer.vehicles[1][:duration] = 3
+    clusterer.vehicles[0][:capacities][:visits] = 3
+    clusterer.vehicles[1][:capacities][:visits] = 1
 
     strict_limit, cut_limit = compute_limits(:visits, 1.0, clusterer.vehicles, data_set.data_items)
-    clusterer.vehicles.size.times.each{ |cluster_index|
-      assert_equal clusterer.vehicles[cluster_index][:duration], strict_limit[cluster_index][:duration]
-      assert_equal 6, strict_limit[cluster_index][:visits]
-      assert_equal clusterer.vehicles[cluster_index][:duration], cut_limit[cluster_index][:limit]
+    clusterer.vehicles.each_with_index{ |vehicle, cluster_index|
+      assert_equal vehicle[:duration], strict_limit[cluster_index][:duration]
+      assert_equal vehicle[:capacities][:visits], strict_limit[cluster_index][:visits]
+      assert_equal vehicle[:capacities][:visits], cut_limit[cluster_index][:limit] # balancing visits
     }
   end
 
