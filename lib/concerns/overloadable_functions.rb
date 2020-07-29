@@ -57,29 +57,29 @@ module OverloadableFunctions
     }
   end
 
-  def compute_limits(cut_symbol, cut_ratio, vehicles, data_items, entity = :vehicle)
-    cumulated_metrics = Hash.new(0)
-
-    (@unit_symbols || (cut_symbol && [cut_symbol]))&.each{ |unit|
-      cumulated_metrics[unit] = data_items.sum{ |item| item[3][unit].to_f }
-    }
-
+  def compute_limits(cut_symbol, cut_ratio, vehicles, data_items)
     strict_limits = vehicles.collect{ |vehicle|
-      s_l = { duration: vehicle[:duration] } # incase capacity for duration is not supplied
+      s_l = { duration: vehicle[:duration] } # incase duration is not supplied inside the capacities
       vehicle[:capacities].each{ |unit, limit|
         s_l[unit] = limit
       }
+      vehicle[:duration] = s_l[:duration] # incase duration is only supplied inside the capacities
       s_l
     }
 
-    total_duration = vehicles.sum{ |vehicle| vehicle[:duration].to_f }
-    metric_limits = if entity == :vehicle && total_duration.positive?
-                      vehicles.collect{ |vehicle|
-                        { limit: cut_ratio * cumulated_metrics[cut_symbol] * vehicle[:duration] / total_duration }
-                      }
-                    else
-                      { limit: cut_ratio * cumulated_metrics[cut_symbol] / vehicles.size }
-                    end
+    if cut_symbol
+      total_quantity = Hash.new(0)
+
+      (@unit_symbols || (cut_symbol && [cut_symbol]))&.each{ |unit|
+        total_quantity[unit] = data_items.sum{ |item| item[3][unit].to_f }
+      }
+
+      total_capacity = vehicles.sum{ |vehicle| vehicle[:capacities][cut_symbol].to_f }
+      metric_limits = vehicles.collect{ |vehicle|
+        vehicle_share = total_capacity.positive? ? vehicle[:capacities][cut_symbol] / total_capacity : 1.0 / vehicles.size
+        { limit: cut_ratio * total_quantity[cut_symbol] * vehicle_share }
+      }
+    end
 
     [strict_limits, metric_limits]
   end

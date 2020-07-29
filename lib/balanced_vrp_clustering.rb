@@ -151,7 +151,7 @@ module Ai4r
         }
 
         compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix) if @cut_symbol == :duration
-        @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items, options[:entity])
+        @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items)
         @remaining_skills = @vehicles.dup
 
         @manage_empty_clusters_iterations = 0
@@ -431,15 +431,17 @@ module Ai4r
         distance = @distance_function.call(data_item, centroid)
 
         cut_value = @centroids[cluster_index][3][@cut_symbol].to_f
-        limit = if @cut_limit.is_a? Array
-                  @cut_limit[cluster_index][:limit]
-                else
-                  @cut_limit[:limit]
-                end
 
         # balance between clusters computation
         balance = 1.0
         if @apply_balancing
+
+          limit = if @cut_limit.is_a? Array
+            @cut_limit[cluster_index][:limit]
+          else
+            @cut_limit[:limit]
+          end
+
           # At this "stage" of the clustering we would expect this limit to be met
           expected_cut_limit = limit * @percent_assigned_cut_load
           # Compare "expected_cut_limit to the current cut_value
