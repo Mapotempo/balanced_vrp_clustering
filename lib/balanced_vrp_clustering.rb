@@ -82,7 +82,7 @@ module Ai4r
           raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all items'
         end
 
-        if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) }
+        if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) || (cut_symbol == :duration && v_i[:duration]) }
           # TODO: remove this condition and handle the infinity capacities properly.
           raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
         end
@@ -184,11 +184,11 @@ module Ai4r
         until stop_criteria_met || @iteration >= @max_iterations
           @rate_balance = 1.0 - (0.2 * @iteration / @max_iterations) if @cut_symbol
 
-          update_cut_limit
+          update_cut_limit_wrt_depot_distance
 
           calculate_membership_clusters
 
-          output_cluster_geojson if @geojson_dump_folder && @iteration.modulo(@geojson_dump_freq) == 0
+          output_cluster_geojson if @iteration.modulo(@geojson_dump_freq).zero?
 
           recompute_centroids
         end
@@ -196,12 +196,14 @@ module Ai4r
         if options[:last_iteration_balance_rate]
           @rate_balance = options[:last_iteration_balance_rate] if options[:last_iteration_balance_rate]
 
-          update_cut_limit
+          update_cut_limit_wrt_depot_distance
 
           calculate_membership_clusters
         end
 
         output_cluster_geojson if @geojson_dump_folder
+
+        output_cluster_geojson
 
         self
       end
@@ -630,8 +632,8 @@ module Ai4r
         }
       end
 
-      def update_cut_limit
-        return if @rate_balance == 0.0 || @cut_symbol.nil? || @cut_symbol != :duration || !@cut_limit.is_a?(Array)
+      def update_cut_limit_wrt_depot_distance
+        return unless @cut_symbol == :duration
 
         # TODO: This functionality is implemented only for duration cut_symbol. Make sure it doesn't interfere with other cut_symbols
         vehicle_work_time = compute_vehicle_work_time_with
@@ -697,6 +699,8 @@ module Ai4r
       end
 
       def output_cluster_geojson
+        return unless @geojson_dump_folder
+
         @start_time ||= Time.now.strftime('%H:%M:%S').parameterize
         colorgenerator = ColorGenerator.new(saturation: 0.8, value: 1.0, seed: 1) if @geojson_colors.nil? # fix the seed so that color order is the same
         @geojson_colors ||= Array.new(@number_of_clusters){ "##{colorgenerator.create_hex}" }
