@@ -191,6 +191,7 @@ class ClusteringTest < Minitest::Test
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
     # depending on the seed, sometimes it doesn't pass -- 1 out of 10
+    # it is because points with huge quantities which came last
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/avoid_capacities_overlap.bindump')
 
     clusterer.build(data_set, options[:cut_symbol], ratio, options)
