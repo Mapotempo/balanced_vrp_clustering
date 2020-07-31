@@ -184,9 +184,8 @@ class ClusteringTest < Minitest::Test
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/length_centroid.bindump')
 
     clusterer.build(data_set, options[:cut_symbol], ratio, options)
-    clusterer.clusters.delete([])
 
-    assert_equal 2, clusterer.clusters.size, 'There are only 2 data_items, should have at most 2 non-empty clusters.'
+    assert_equal 2, clusterer.clusters.count{ |c| !c.data_items.empty? }, 'There are only 2 data_items, should have at most 2 non-empty clusters.'
   end
 
   def test_avoid_capacities_overlap
@@ -195,9 +194,8 @@ class ClusteringTest < Minitest::Test
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/avoid_capacities_overlap.bindump')
 
     clusterer.build(data_set, options[:cut_symbol], ratio, options)
-    clusterer.clusters.delete([])
 
-    assert_equal 5, clusterer.clusters.size
+    assert_equal 5, clusterer.clusters.count{ |c| !c.data_items.empty? }, 'There should be 5 non-empty clusters'
 
     %i[kg qte].each{ |unit|
       assert_operator clusterer.clusters.map.with_index.count{ |cluster, i|
