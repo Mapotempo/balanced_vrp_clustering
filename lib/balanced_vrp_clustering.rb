@@ -48,7 +48,14 @@ module Ai4r
                       distance_matrix: 'Distance matrix to use to compute distance between two data_items',
                       compatibility_function: 'Custom implementation of a compatibility_function.'\
                         'It must be a closure receiving a data item and a centroid and return a '\
-                        'boolean (true: if compatible and false: if incompatible).'
+                        'boolean (true: if compatible and false: if incompatible).',
+                      on_empty: '(DEPRECATED) the only possible option is \'closest\''\
+                        ' -- i.e., relocate the empty cluster to the closest compatible point.'
+
+      def initialize
+        super
+        @on_empty = 'closest' # the other options are not available
+      end
 
       def build(data_set, cut_symbol, cut_ratio = 1.0, options = {})
         # Build a new clusterer, using data items found in data_set.
@@ -82,6 +89,10 @@ module Ai4r
           raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all items'
         end
 
+        unless @on_empty == 'closest'
+          raise ArgumentError, 'Only \'closest\' option is supported for :on_empty parameter'
+        end
+
         if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) || (cut_symbol == :duration && v_i[:duration]) }
           # TODO: remove this condition and handle the infinity capacities properly.
           raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
@@ -92,7 +103,7 @@ module Ai4r
         @cut_symbol = cut_symbol
         @unit_symbols = [cut_symbol].compact
         @unit_symbols |= @vehicles.collect{ |c| c[:capacities].keys }.flatten.uniq if @vehicles.any?{ |c| c[:capacities] }
-        @number_of_clusters = [@vehicles.size, data_set.data_items.collect{ |data_item| [data_item[0], data_item[1]] }.uniq.size].min
+        @number_of_clusters = @vehicles.size
 
         ### default values ###
         @geojson_dump_freq ||= 2
@@ -154,8 +165,6 @@ module Ai4r
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items)
         @remaining_skills = @vehicles.dup
 
-        @manage_empty_clusters_iterations = 0
-
         ### algo start ###
         @iteration = 0
 
@@ -173,7 +182,7 @@ module Ai4r
           else
             # first @centroids.length data_items correspond to centroids, they should remain at the begining of the set
             data_length = @data_set.data_items.size
-            @data_set.data_items[@centroids.length..-1] = @data_set.data_items[@centroids.length..-1].sort_by { |x| -x[3][@cut_symbol].to_f }
+            @data_set.data_items[[@centroids.length, data_length].min..-1] = @data_set.data_items[[@centroids.length, data_length].min..-1].sort_by { |x| -x[3][@cut_symbol].to_f }
             range_end = (data_length * 0.9).to_i
             range_begin = [(@centroids.length + data_length * 0.1).to_i, range_end].min
             @data_set.data_items[range_begin..range_end] = @data_set.data_items[range_begin..range_end].shuffle
@@ -271,6 +280,8 @@ module Ai4r
         centroid_smoothing_coeff = 0.1 + 0.9 * (@iteration / @max_iterations.to_f)**0.5
 
         @centroids.each_with_index{ |centroid, index|
+          next if @clusters[index].data_items.empty?
+
           # Smooth the centroid movement (and keeps track of the "history") with the previous centroid (to prevent erratic jumps)
           # Calculates the new centroid with weighted mean (using the number of visits and distance to current centroid as a weight)
           # That's what matters the most (how many times we have to go to a zone an how far this zone is)
@@ -533,6 +544,12 @@ module Ai4r
               }
             end
 
+            if compatible_items.empty?
+              # If, still empty (!) there are more clusters then items so
+              # initialize it at a random point
+              compatible_items = @data_set.data_items
+            end
+
             item = compatible_items[rand(compatible_items.size)]
 
             skills[:matrix_index] = item[4][:matrix_index]
@@ -570,23 +587,30 @@ module Ai4r
       end
 
       def manage_empty_clusters
-        @manage_empty_clusters_iterations += 1
-        return if self.on_empty == 'terminate' # Do nothing to terminate with error. (The empty cluster will be assigned a nil centroid, and then calculating the distance from this centroid to another point will raise an exception.)
+        @clusters.each_with_index{ |empty_cluster, ind|
+          next unless empty_cluster.data_items.empty?
 
-        initial_number_of_clusters = @number_of_clusters
-        if @manage_empty_clusters_iterations < @data_set.data_items.size * 2
-          eliminate_empty_clusters
-        else
-          # try generating all clusters again
-          @clusters, @centroids, @cluster_indices = [], [], []
-          @remaining_skills = @vehicles.dup
-          @number_of_clusters = @centroids.length
-        end
-        return if self.on_empty == 'eliminate'
+          empty_centroid = @centroids[ind]
 
-        populate_centroids(self.on_empty, initial_number_of_clusters) # Add initial_number_of_clusters - @number_of_clusters
-        calculate_membership_clusters
-        @manage_empty_clusters_iterations = 0
+          distances = @clusters.collect{ |cluster|
+            next unless cluster.data_items.size > 1
+
+            closest_item = cluster.data_items.select{ |d_i|
+              @compatibility_function.call(d_i, empty_centroid)
+            }.min_by{ |d_i|
+              @distance_function.call(d_i, empty_centroid)
+            }
+            next if closest_item.nil?
+
+            [@distance_function.call(closest_item, empty_centroid), closest_item, cluster]
+          }
+
+          closest = distances.min_by{ |d| d.nil? ? Float::INFINITY : d[0] }
+
+          next if closest.nil?
+
+          empty_cluster.data_items << closest[2].data_items.delete(closest[1])
+        }
       end
 
       def eliminate_empty_clusters
