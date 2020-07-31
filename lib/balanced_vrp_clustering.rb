@@ -172,7 +172,7 @@ module Ai4r
         @items_with_limit_violation = []
         @clusters_with_limit_violation = Array.new(@number_of_clusters){ [] }
 
-        @limit_violation_coefficient = Array.new(@number_of_clusters, 1)
+        @balance_coeff = Array.new(@number_of_clusters, 1.0)
 
         calc_initial_centroids
 
@@ -190,28 +190,15 @@ module Ai4r
           end
         end
 
-        @rate_balance = 0.0
         until stop_criteria_met || @iteration >= @max_iterations
-          @rate_balance = 1.0 - (0.2 * @iteration / @max_iterations) if @cut_symbol
-
-          update_cut_limit_wrt_depot_distance
-
           calculate_membership_clusters
 
           output_cluster_geojson if @iteration.modulo(@geojson_dump_freq).zero?
 
+          update_balance_coefficients
+
           recompute_centroids
         end
-
-        if options[:last_iteration_balance_rate]
-          @rate_balance = options[:last_iteration_balance_rate] if options[:last_iteration_balance_rate]
-
-          update_cut_limit_wrt_depot_distance
-
-          calculate_membership_clusters
-        end
-
-        output_cluster_geojson if @geojson_dump_folder
 
         output_cluster_geojson
 
@@ -368,8 +355,14 @@ module Ai4r
           }
 
           if favorite_clusters.empty?
-            @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, decreasing its limit_violation_coefficient"
-            @limit_violation_coefficient.collect!.with_index{ |c, i| (i == violated_cluster) ? c : c * 0.98 } # update_limit_violation_coefficient
+            @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, decreasing its balance_coeff"
+            @balance_coeff[violated_cluster] /= 0.95 # keep the violated cluster the same
+            @balance_coeff.collect!{ |c| c * 0.95 } # decrease others
+            # TODO: this coefficient can be made dependent to
+            # the number of times this cluster refused an item
+            # or the total "load" of all rejected items
+            # or the item that has the smallest items_with_limit_violation[3] (ratio)...
+            # and a coeff that makes sure that this cluster will not be the closest in the next itration
             next
           end
 
@@ -389,18 +382,18 @@ module Ai4r
             @centroids[violated_cluster][0..2],
             @centroids[violated_cluster][4][:matrix_index],
             @centroids[violated_cluster][4][:duration_from_and_to_depot],
-            @limit_violation_coefficient[violated_cluster]
+            @balance_coeff[violated_cluster]
           ] # lat lon point_id and matrix_index duration_from_and_to_depot if exists
 
           @centroids[violated_cluster][0..2] = @centroids[favorite_cluster][0..2]
           @centroids[violated_cluster][4][:matrix_index] = @centroids[favorite_cluster][4][:matrix_index]
           @centroids[violated_cluster][4][:duration_from_and_to_depot] = @centroids[favorite_cluster][4][:duration_from_and_to_depot]
-          @limit_violation_coefficient[violated_cluster] = @limit_violation_coefficient[favorite_cluster]
+          @balance_coeff[violated_cluster] = @balance_coeff[favorite_cluster]
 
           @centroids[favorite_cluster][0..2] = swap_safe[0]
           @centroids[favorite_cluster][4][:matrix_index] = swap_safe[1]
           @centroids[favorite_cluster][4][:duration_from_and_to_depot] = swap_safe[2]
-          @limit_violation_coefficient[favorite_cluster] = swap_safe[3]
+          @balance_coeff[favorite_cluster] = swap_safe[3]
 
           @logger&.debug "swapped location of #{violated_cluster + 1}th cluster with #{favorite_cluster + 1}th cluster"
           already_swapped_a_centroid = true # break # swap only one at a time
@@ -413,7 +406,7 @@ module Ai4r
       # to (0-based).
       def evaluate(data_item)
         distances = @centroids.collect.with_index{ |centroid, cluster_index|
-          dist = distance(data_item, centroid, cluster_index) * @limit_violation_coefficient[cluster_index]
+          dist = distance(data_item, centroid, cluster_index)
 
           dist += 2**32 unless @compatibility_function.call(data_item, centroid)
 
@@ -452,41 +445,7 @@ module Ai4r
       protected
 
       def distance(data_item, centroid, cluster_index)
-        # TODO: Move extra logic outside of the distance function.
-        # The user should be able to overload 'distance' function witoud losing any functionality
-        distance = @distance_function.call(data_item, centroid)
-
-        cut_value = @centroids[cluster_index][3][@cut_symbol].to_f
-
-        # balance between clusters computation
-        balance = 1.0
-        if @apply_balancing
-
-          limit = if @cut_limit.is_a? Array
-            @cut_limit[cluster_index][:limit]
-          else
-            @cut_limit[:limit]
-          end
-
-          # At this "stage" of the clustering we would expect this limit to be met
-          expected_cut_limit = limit * @percent_assigned_cut_load
-          # Compare "expected_cut_limit to the current cut_value
-          # and penalize (or favorise) if cut_value/expected_cut_limit greater (or less) than 1.
-          balance = if @percent_assigned_cut_load < 0.95
-                      # First down-play the effect of balance (i.e., **power < 1)
-                      # After then make it more pronounced (i.e., **power > 1)
-                      (cut_value / expected_cut_limit)**((2 + @rate_balance) * @percent_assigned_cut_load)
-                    else
-                      # If at the end of the clustering, do not take the power
-                      (cut_value / expected_cut_limit)
-                    end
-        end
-
-        if @rate_balance
-          (1.0 - @rate_balance) * distance + @rate_balance * distance * balance
-        else
-          distance * balance
-        end
+        @distance_function.call(data_item, centroid) * @balance_coeff[cluster_index]
       end
 
       def calculate_membership_clusters
@@ -682,6 +641,50 @@ module Ai4r
         }
       end
 
+      def update_balance_coefficients
+        return unless @cut_symbol
+
+        update_cut_limit_wrt_depot_distance
+
+        # TODO: correct the cut_limit wrt cluster "size" as well
+
+        # TODO: cut_limit needs to be updated wrt capacity violations
+        # there is no point on decreasing the coeff of a violated cluster
+
+        @logger&.debug '_____________________________________________________________________________________________________________'
+        @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f) }.sum.round(2)
+        @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f).round(3) }.join(',  ')
+
+        stepsize = 0.1 # unitless coefficient for making the updates smaller
+        max_correction = 1.05 + 0.45 * (@max_iterations - @iteration) / @max_iterations.to_f
+        min_correction = 1.0 / max_correction
+
+        @number_of_clusters.times.each{ |index|
+          # TODO: need to do "something" about the capacity violating clusters
+          # even if they are under-loaded we should't decrease their balance_coeff;
+          # otherwise, they will continue to violate their capacity for sure
+          balance_violation = @centroids[index][3][@cut_symbol] / @cut_limit[index][:limit].to_f - 1.0
+
+          # TODO: if the violation is small don't bother updating the coeff ?
+          # next if balance_violation.abs < @balance_violation_current_limit
+
+          balance_correction = [[(1 + balance_violation)**stepsize, min_correction].max, max_correction].min
+
+          # TODO: stepsize can evolve during the iterations like column-generation
+          # it shouldn't lead to extreme zig-zagging but it shouldn't lead to
+          # flat-lining either.
+
+          @balance_coeff[index] *= balance_correction
+          @balance_coeff.collect!{ |b_c| b_c / balance_correction }
+        }
+
+        # TODO: check if there is a better way to do stabilization
+        # make balance coeff mean 1 to prevent them getting extremely big/small
+        @balance_coeff.collect!{ |b_c| (b_c / @balance_coeff.mean) }
+
+        @logger&.debug "new balance_coeffs:\n#{@balance_coeff.collect{ |b_c| b_c.round(3) }.join(',  ')}"
+      end
+
       def centroids_converged_or_in_loop(last_n_iterations)
         # Checks if there is a loop of size last_n_iterations
         if @iteration.zero?
@@ -732,6 +735,19 @@ module Ai4r
       end
 
       def capactity_violation?(item, cluster_index)
+        # TODO: correction of duration wrt to cluster "size" is needed for duration capacity
+        # For this,
+        # (1) we need to keep some info inside the centroid/cluster
+        # The distance of the most distant point, the surface area (i.e., travel duration approximation for the cluster),
+        # number of visits in this cluster at the end of last iteration.
+        # Then for checking duration capacity violation,
+        # if the item in consideration is more farther away then the current most distant point then update the "cluster_size" temporarily
+        # if not, no update is needed
+        # and then check the following
+        # duration_from_to_depot x n_day + current_duration_load + cluster_size + duration_value > limit
+        # (2) at the moment of actual affectation, we need to check again and make a correction of the info kept inside the cluster/centroid if needed
+        # (3) at the end of iteration update the vuisit count
+        # (4) modify update_cut_limit_wrt_depot_distance so that we always have an up-to-date distance into inside centroid
         item[3].any?{ |unit, value|
           @strict_limitations[cluster_index][unit] && (@centroids[cluster_index][3][unit] + value > @strict_limitations[cluster_index][unit])
         }
@@ -835,7 +851,7 @@ module Ai4r
               matrix_index: @centroids[c_index][3][:matrix_index],
               point_count: cluster.data_items.size,
               depot_distance: @centroids[c_index][3][:duration_from_and_to_depot],
-              # balance_coeff: @balance_coeff[c_index], # will ve
+              balance_coeff: @balance_coeff[c_index],
             }.merge(totals),
             geometry: {
               type: 'Point',
@@ -853,7 +869,7 @@ module Ai4r
               matrix_index: @centroids[c_index][3][:matrix_index],
               point_count: cluster.data_items.size,
               depot_distance: @centroids[c_index][3][:duration_from_and_to_depot],
-              # balance_coeff: @balance_coeff[c_index],
+              balance_coeff: @balance_coeff[c_index],
             }.merge(totals),
             geometry: {
               type: 'Polygon',
