@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name = 'balanced_vrp_clustering'
-  s.version = '0.1.4'
-  s.date = '2020-07-02'
+  s.version = '0.1.5'
+  s.date = '2020-08-05'
   s.summary = 'Gem to clusterize points of a given VRP.'
   s.authors = 'Mapotempo'
   s.files = [
