@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    balanced_vrp_clustering (0.1.4)
+    balanced_vrp_clustering (0.1.5)
       color-generator
       geojson2image
 
@@ -56,7 +56,7 @@ GEM
     nio4r (2.5.2)
     nokogiri (1.10.9)
       mini_portile2 (~> 2.4.0)
-    oj (3.10.6)
+    oj (3.10.8)
     parallel (1.19.1)
     parser (2.7.0.4)
       ast (~> 2.4.0)
