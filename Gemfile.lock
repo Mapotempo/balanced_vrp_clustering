@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    balanced_vrp_clustering (0.1.6)
+    balanced_vrp_clustering (0.1.7)
       color-generator
       geojson2image
 
@@ -153,4 +153,3 @@ DEPENDENCIES
 
 RUBY VERSION
    ruby 2.3.3p222
-
