@@ -532,56 +532,46 @@ module Ai4r
         case populate_method
         when 'random'
           while @centroids.length < number_of_clusters
+            available_items ||= @data_set.data_items.dup # get a new container object
+
             skills = @remaining_skills.shift
 
-            # Find the items which are not already used, and specifically need the skill set of this cluster
-            compatible_items = @data_set.data_items.select{ |item|
-              !@centroids.collect{ |centroid| centroid[2] }.flatten.include?(item[2]) &&
-                !item[4].empty? &&
+            # Select from the items which are not already used which
+            # specifically need the skill set of this cluster
+            # Prefer items whom closest depot corresponds to current cluster.
+            items_to_consider = available_items.select{ |item|
+              !item[4].empty? &&
                 !(item[4][:v_id].empty? && item[4][:skills].empty?) &&
                 @compatibility_function.call(item, [0, 0, 0, 0, skills, 0])
             }
+            compatible_items = compatible_items_multi_depot_selector(items_to_consider)
 
             # If there are no items which specifically needs these skills,
             # then find all the items that can be assigned to this cluster.
             # Prefer items whom closest depot corresponds to current cluster.
-            margin = 0
-            while compatible_items.empty? && margin < @vehicles.length
-              compatible_items = @data_set.data_items.select{ |item|
-                !@centroids.collect{ |centroid| centroid[2] }.flatten.include?(item[2]) &&
-                  @compatibility_function.call(item, [0, 0, 0, 0, skills, 0])
-              }.select{ |item|
-                minimum_accepted = item[4][:duration_from_and_to_depot].sort[margin]
-                item[4][:duration_from_and_to_depot][@centroids.length] == minimum_accepted # avoid find index because if two clusters have same duration_from_and_to_depot it might reject current centroid uncorrectly
+            if compatible_items.empty?
+              items_to_consider = available_items.select{ |item|
+                @compatibility_function.call(item, [0, 0, 0, 0, skills, 0])
               }
-              margin += 1
+              compatible_items = compatible_items_multi_depot_selector(items_to_consider)
             end
 
             # If, still, there are no items that can be assigned to this cluster
             # initialize it with a random point
             # Prefer items whom closest depot corresponds to current cluster.
-            margin = 0
-            while compatible_items.empty? && margin < @vehicles.length
-              compatible_items = @data_set.data_items.reject{ |item|
-                @centroids.collect{ |centroid| centroid[2] }.flatten.include?(item[2])
-              }.select{ |item|
-                minimum_accepted = item[4][:duration_from_and_to_depot].sort[margin]
-                item[4][:duration_from_and_to_depot][@centroids.length] == minimum_accepted # avoid find index because if two clusters have same duration_from_and_to_depot it might reject current centroid uncorrectly
-              }
-              margin += 1
-            end
+            compatible_items = compatible_items_multi_depot_selector(available_items) if compatible_items.empty?
 
-            if compatible_items.empty?
-              # If, still empty (!) there are more clusters then items so
-              # initialize it at a random point
-              compatible_items = @data_set.data_items
-            end
+            # If, still empty (!) there are more clusters then items so
+            # initialize it at a random point
+            compatible_items = compatible_items_multi_depot_selector(@data_set.data_items) if compatible_items.empty?
 
             item = compatible_items[rand(compatible_items.size)]
 
             skills[:matrix_index] = item[4][:matrix_index]
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot][@centroids.length]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
+
+            available_items.delete(item)
 
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
           end
@@ -747,6 +737,17 @@ module Ai4r
         item[3].any?{ |unit, value|
           @strict_limitations[cluster_index][unit] && (@centroids[cluster_index][3][unit] + value > @strict_limitations[cluster_index][unit])
         }
+      end
+
+      def compatible_items_multi_depot_selector(items_to_consider)
+        closest_items = []
+        @vehicles.length.times.each{ |margin|
+          closest_items = items_to_consider.select{ |item|
+            item[4][:duration_from_and_to_depot][@centroids.length] <= item[4][:duration_from_and_to_depot].sort[margin]
+          }
+          break unless closest_items.empty?
+        }
+        closest_items
       end
 
       def output_cluster_geojson
