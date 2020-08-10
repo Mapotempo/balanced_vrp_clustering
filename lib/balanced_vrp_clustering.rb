@@ -161,7 +161,8 @@ module Ai4r
           group.each{ |d_i| d_i[4][:centroid_weights][:compatibility] = compatibility_weight.ceil }
         }
 
-        compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix) if @cut_symbol == :duration
+        compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix)
+
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items)
         @remaining_skills = @vehicles.dup
 
