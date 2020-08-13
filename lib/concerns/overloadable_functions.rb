@@ -35,7 +35,9 @@ module OverloadableFunctions
   end
 
   def compute_distance_from_and_to_depot(vehicles, data_set, matrix)
-    return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot] }
+    return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot]&.any? }
+
+    # TODO: check if we always need duration_from_and_to_depot (even if the vehicles don't have a duration limit)
 
     data_set.data_items.each{ |point|
       point[4][:duration_from_and_to_depot] = []

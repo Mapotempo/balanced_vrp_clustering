@@ -81,7 +81,7 @@ module Ai4r
             data_set.data_items.any?{ |item| !item[4][:matrix_index] }
             raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
           end
-        elsif @vehicles.any?{ |v_i| v_i[:depot][:coordinates].size != 2 }
+        elsif @vehicles.any?{ |v_i| v_i[:depot][:coordinates]&.size != 2 }
           raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all vehicles'
         end
 
@@ -315,15 +315,13 @@ module Ai4r
           # correct the matrix_index of the centroid with the index of the point_closest_to_centroid_center
           centroid[4][:matrix_index] = point_closest_to_centroid_center[4][:matrix_index] if centroid[4][:matrix_index]
 
+          # correct the distance_from_and_to_depot info of the new cluster with the average of the points
+          centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f if centroid[4][:duration_from_and_to_depot]
+
           next unless @cut_symbol
 
           # move the data_points closest to the centroid centers to the top of the data_items list so that balancing can start early
           @data_set.data_items.insert(0, @data_set.data_items.delete(point_closest_to_centroid_center))
-
-          # correct the distance_from_and_to_depot info of the new cluster with the average of the points
-          next unless centroid[4][:duration_from_and_to_depot]
-
-          centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f
         }
 
         swap_a_centroid_with_limit_violation
