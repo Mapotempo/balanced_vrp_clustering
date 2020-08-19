@@ -75,6 +75,8 @@ module Ai4r
         # DEPRECATED variables (to be removed before public release)
         @vehicles ||= @vehicles_infos # (DEPRECATED)
 
+        raise ArgumentError, 'Each data_item should be uniq' if data_set.data_items.size != data_set.data_items.uniq.size
+
         ### return clean errors if inconsistent data ###
         if distance_matrix
           if @vehicles.any?{ |v_i| v_i[:depot][:matrix_index].nil? } ||
