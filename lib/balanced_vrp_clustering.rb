@@ -665,6 +665,8 @@ module Ai4r
           # otherwise, they will continue to violate their capacity for sure
           balance_violation = @centroids[index][3][@cut_symbol] / @cut_limit[index][:limit].to_f - 1.0
 
+          next if !@clusters_with_limit_violation[index].empty? && balance_violation.negative?
+
           # TODO: if the violation is small don't bother updating the coeff ?
           # next if balance_violation.abs < @balance_violation_current_limit
 
