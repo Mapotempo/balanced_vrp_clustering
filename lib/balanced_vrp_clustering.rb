@@ -76,13 +76,12 @@ module Ai4r
         @vehicles ||= @vehicles_infos # (DEPRECATED)
 
         ### return clean errors if inconsistent data ###
-        if distance_matrix
-          if @vehicles.any?{ |v_i| v_i[:depot][:matrix_index].nil? } ||
-            data_set.data_items.any?{ |item| !item[4][:matrix_index] }
-            raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
-          end
-        elsif @vehicles.any?{ |v_i| v_i[:depot][:coordinates]&.size != 2 }
-          raise ArgumentError, 'Location info (lattitude and longitude) should be provided for all vehicles'
+        if distance_matrix && data_set.data_items.any?{ |item| !item[4][:matrix_index] }
+          raise ArgumentError, 'Distance matrix provided: matrix index should be provided for all vehicles and items'
+        end
+
+        if data_set.data_items.any?{ |item| item[4][:duration_from_and_to_depot]&.size != @vehicles.size }
+          raise ArgumentError, 'duration_from_and_to_depot should be provided for all data items'
         end
 
         if data_set.data_items.any?{ |item| !(item[0] && item[1]) }
@@ -160,8 +159,6 @@ module Ai4r
 
           group.each{ |d_i| d_i[4][:centroid_weights][:compatibility] = compatibility_weight.ceil }
         }
-
-        compute_distance_from_and_to_depot(@vehicles, @data_set, distance_matrix)
 
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items)
         @remaining_skills = @vehicles.dup
@@ -341,17 +338,14 @@ module Ai4r
 
             next unless clusters_can_be_swapped
 
-            if Helper.flying_distance(@centroids[i][4][:depot][:coordinates], @centroids[violated_cluster][4][:depot][:coordinates]) < 500
-              true
-            else
-              violated_distance_from_and_to_depot = @clusters[violated_cluster].data_items.map{ |d| d[4][:duration_from_and_to_depot][i] }.reduce(&:+) / @clusters[violated_cluster].data_items.size.to_f
-              favorite_distance_from_and_to_depot = @clusters[i].data_items.map{ |d| d[4][:duration_from_and_to_depot][violated_cluster] }.reduce(&:+) / @clusters[i].data_items.size.to_f
+            # check if swapping the centroids is okay from multi-depot point of view
+            violated_duration_from_and_to_depot = @clusters[violated_cluster].data_items.sum{ |d| d[4][:duration_from_and_to_depot][i] } / @clusters[violated_cluster].data_items.size.to_f
+            favorite_duration_from_and_to_depot = @clusters[i].data_items.sum{ |d| d[4][:duration_from_and_to_depot][violated_cluster] } / @clusters[i].data_items.size.to_f
 
-              (violated_distance_from_and_to_depot < @centroids[violated_cluster][4][:duration_from_and_to_depot] ||
-                favorite_distance_from_and_to_depot < @centroids[i][4][:duration_from_and_to_depot]) ||
-                (violated_distance_from_and_to_depot < 2 * @centroids[violated_cluster][4][:duration_from_and_to_depot] &&
-                  favorite_distance_from_and_to_depot < 2 * @centroids[i][4][:duration_from_and_to_depot])
-            end
+            (violated_duration_from_and_to_depot < @centroids[violated_cluster][4][:duration_from_and_to_depot] ||
+              favorite_duration_from_and_to_depot < @centroids[i][4][:duration_from_and_to_depot]) ||
+              (violated_duration_from_and_to_depot < 2 * @centroids[violated_cluster][4][:duration_from_and_to_depot] &&
+                favorite_duration_from_and_to_depot < 2 * @centroids[i][4][:duration_from_and_to_depot])
           }
 
           if favorite_clusters.empty?
