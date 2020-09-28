@@ -611,13 +611,7 @@ module Ai4r
 
         # TODO: The following filter is there to not to affect the existing functionality.
         # However, we should improve the functioanlity and make it less arbitrary.
-        coef = if coef > 1.5
-                 1.5
-               elsif coef > 1.0
-                 1.0
-               else
-                 coef * 0.9 # To make sure the limit will not become 0.
-               end
+        coef = [coef * 0.9, 1.0].min # To make sure the limit will not become 0
 
         @centroids.map.with_index{ |centroid, index|
           @vehicles[index][:duration] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
