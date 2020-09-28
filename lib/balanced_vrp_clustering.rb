@@ -355,9 +355,9 @@ module Ai4r
           }
 
           if favorite_clusters.empty?
-            @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, decreasing its balance_coeff"
-            @balance_coeff[violated_cluster] /= 0.95 # keep the violated cluster the same
-            @balance_coeff.collect!{ |c| c * 0.95 } # decrease others
+            @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, increasing its balance_coeff"
+            @balance_coeff[violated_cluster] /= 0.95 # increase the coefficient of the violated cluster
+
             # TODO: this coefficient can be made dependent to
             # the number of times this cluster refused an item
             # or the total "load" of all rejected items
