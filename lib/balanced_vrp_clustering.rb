@@ -443,6 +443,8 @@ module Ai4r
       end
 
       def calculate_membership_clusters
+        update_strict_duration_limitation_wrt_depot
+
         @centroids.each{ |centroid| centroid[3] = Hash.new(0) }
         @clusters = Array.new(@number_of_clusters) do
           Ai4r::Data::DataSet.new data_labels: @data_set.data_labels
@@ -626,6 +628,14 @@ module Ai4r
         total_vehicle_work_times = vehicle_work_time.reduce(&:+).to_f
         @centroids.size.times{ |index|
           @cut_limit[index][:limit] = @total_cut_load * vehicle_work_time[index] / total_vehicle_work_times
+        }
+      end
+
+      def update_strict_duration_limitation_wrt_depot
+        return unless @cut_symbol
+
+        @centroids.map.with_index{ |centroid, index|
+          @strict_limitations[index][:duration] = @vehicles[index][:duration] - centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
         }
       end
 
