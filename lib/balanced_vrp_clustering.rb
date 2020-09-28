@@ -682,7 +682,8 @@ module Ai4r
 
         # TODO: check if there is a better way to do stabilization
         # make balance coeff mean 1 to prevent them getting extremely big/small
-        @balance_coeff.collect!{ |b_c| (b_c / @balance_coeff.mean) }
+        stabilization_coeff = 1.0 / @balance_coeff.mean
+        @balance_coeff.collect!{ |b_c| stabilization_coeff * b_c }
 
         @logger&.debug "new balance_coeffs:\n#{@balance_coeff.collect{ |b_c| b_c.round(3) }.join(',  ')}"
       end
