@@ -701,7 +701,7 @@ module Ai4r
         @last_n_average_diffs.push total_movement_meter.to_f # add to the vector before convergence check in case other conditions are not satisfied
 
         # If convereged, we can stop
-        return true if @last_n_average_diffs.last < @number_of_clusters * 10
+        return true if @last_n_average_diffs.last < @number_of_clusters * (20 + 80 * @iteration / @max_iterations)
 
         # Check if there is a centroid loop of size n
         (1..last_n_iterations).each{ |n|
