@@ -842,7 +842,7 @@ module Ai4r
               stroke: '#000000',
               'stroke-opacity': 0,
               'stroke-width': 10,
-              name: "#{@centroids[c_index][4][:v_id]&.join(',')}_center",
+              name: "#{@centroids[c_index][4][:id]&.join(',')}_center",
               lat_lon: @centroids[c_index][0..1].join(','),
               lon_lat: @centroids[c_index][0..1].reverse.join(','),
               matrix_index: @centroids[c_index][3][:matrix_index],
