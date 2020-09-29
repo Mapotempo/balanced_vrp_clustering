@@ -659,8 +659,8 @@ module Ai4r
         @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f) }.sum.round(2)
         @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f).round(3) }.join(',  ')
 
-        stepsize = 0.1 # unitless coefficient for making the updates smaller
-        max_correction = 1.05 + 0.45 * (@max_iterations - @iteration) / @max_iterations.to_f
+        stepsize = 0.2 - 0.1 *  @iteration / @max_iterations.to_f # unitless coefficient for making the updates smaller
+        max_correction = 1.05 + 0.95 * (@max_iterations - @iteration) / @max_iterations.to_f
         min_correction = 1.0 / max_correction
 
         @max_balance_violation = 0
