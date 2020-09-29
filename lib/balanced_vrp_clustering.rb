@@ -316,7 +316,10 @@ module Ai4r
       def swap_a_centroid_with_limit_violation
         already_swapped_a_centroid = false
         @clusters_with_limit_violation.map.with_index.sort_by{ |arr, _i| -arr.size }.each{ |preferred_clusters, violated_cluster|
-          break if preferred_clusters.empty?
+          if preferred_clusters.empty?
+            @centroids[violated_cluster][4][:capacity_offence_coeff] -= 0.3 if @centroids[violated_cluster][4][:capacity_offence_coeff] > 0.3
+            next
+          end
 
           # TODO: elimination/determination of units per cluster should be done at the beginning
           # Each centroid should know what matters to them.
@@ -351,6 +354,8 @@ module Ai4r
           if favorite_clusters.empty?
             @logger&.debug "cannot swap #{violated_cluster + 1}th cluster due compatibility, increasing its balance_coeff"
             @balance_coeff[violated_cluster] /= 0.95 # increase the coefficient of the violated cluster
+
+            @centroids[violated_cluster][4][:capacity_offence_coeff] += 1
 
             # TODO: this coefficient can be made dependent to
             # the number of times this cluster refused an item
@@ -470,6 +475,7 @@ module Ai4r
         else
           populate_centroids('indices')
         end
+        @centroids.each{ |c| c[4][:capacity_offence_coeff] = 0 }
       end
 
       def populate_centroids(populate_method, number_of_clusters = @number_of_clusters)
@@ -607,7 +613,7 @@ module Ai4r
 
       private
 
-      def compute_vehicle_work_time_with
+      def compute_vehicle_work_time_with_depot_and_capacity
         coef = @centroids.map.with_index{ |centroid, index|
           @vehicles[index][:duration] / ([centroid[4][:duration_from_and_to_depot], 1].max * @vehicles[index][:total_work_days])
         }.min
@@ -616,8 +622,11 @@ module Ai4r
         # However, we should improve the functioanlity and make it less arbitrary.
         coef = [coef * 0.9, 1.0].min # To make sure the limit will not become 0
 
+        min_capacity_offence_coeff = @centroids.min_by{ |c| c[4][:capacity_offence_coeff] }[4][:capacity_offence_coeff]
+
         @centroids.map.with_index{ |centroid, index|
-          @vehicles[index][:duration] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]
+          centroid[4][:capacity_offence_coeff] -= min_capacity_offence_coeff
+          (@vehicles[index][:duration] - coef * centroid[4][:duration_from_and_to_depot] * @vehicles[index][:total_work_days]) * 0.98**centroid[4][:capacity_offence_coeff]
         }
       end
 
@@ -625,8 +634,7 @@ module Ai4r
         return unless @cut_symbol == :duration
 
         # TODO: This functionality is implemented only for duration cut_symbol. Make sure it doesn't interfere with other cut_symbols
-        vehicle_work_time = compute_vehicle_work_time_with
-        total_vehicle_work_times = vehicle_work_time.reduce(&:+).to_f
+        vehicle_work_time = compute_vehicle_work_time_with_depot_and_capacity
         @centroids.size.times{ |index|
           @cut_limit[index][:limit] = @total_cut_load * vehicle_work_time[index] / total_vehicle_work_times
         }
@@ -647,9 +655,6 @@ module Ai4r
 
         # TODO: correct the cut_limit wrt cluster "size" as well
 
-        # TODO: cut_limit needs to be updated wrt capacity violations
-        # there is no point on decreasing the coeff of a violated cluster
-
         @logger&.debug '_____________________________________________________________________________________________________________'
         @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f) }.sum.round(2)
         @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f).round(3) }.join(',  ')
@@ -661,9 +666,6 @@ module Ai4r
         @max_balance_violation = 0
 
         @number_of_clusters.times.each{ |index|
-          # TODO: need to do "something" about the capacity violating clusters
-          # even if they are under-loaded we should't decrease their balance_coeff;
-          # otherwise, they will continue to violate their capacity for sure
           balance_violation = @centroids[index][3][@cut_symbol] / @cut_limit[index][:limit].to_f - 1.0
 
           next if !@clusters_with_limit_violation[index].empty? && balance_violation.negative?
