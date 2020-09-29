@@ -601,7 +601,8 @@ module Ai4r
 
       def stop_criteria_met
         centroids_converged_or_in_loop(Math.sqrt(@iteration).to_i) && # This check should stay first since it keeps track of the centroid movements..
-          @limit_violation_count.zero? # Do not converge if a decision is taken due to limit violation.
+          @limit_violation_count.zero? && # Do not converge if a decision is taken due to limit violation.
+          @max_balance_violation.to_f <= 0.05 + (@iteration.to_f / @max_iterations)**8
       end
 
       private
@@ -657,6 +658,8 @@ module Ai4r
         max_correction = 1.05 + 0.45 * (@max_iterations - @iteration) / @max_iterations.to_f
         min_correction = 1.0 / max_correction
 
+        @max_balance_violation = 0
+
         @number_of_clusters.times.each{ |index|
           # TODO: need to do "something" about the capacity violating clusters
           # even if they are under-loaded we should't decrease their balance_coeff;
@@ -664,6 +667,8 @@ module Ai4r
           balance_violation = @centroids[index][3][@cut_symbol] / @cut_limit[index][:limit].to_f - 1.0
 
           next if !@clusters_with_limit_violation[index].empty? && balance_violation.negative?
+
+          @max_balance_violation = [@max_balance_violation, balance_violation.abs].max
 
           # TODO: if the violation is small don't bother updating the coeff ?
           # next if balance_violation.abs < @balance_violation_current_limit
