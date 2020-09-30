@@ -16,8 +16,18 @@
 # <http://www.gnu.org/licenses/agpl.html>
 #
 
+require 'awesome_print'
+
 module Helper
   R = 6378137 # Earth's radius in meters
+
+  BALANCE_VIOLATION_COLOR_LIMITS = [
+    [0.50, 'red'],
+    [0.75, 'purple'],
+    [0.90, 'blue'],
+    [0.95, 'white'],
+    [1.00, 'green']
+  ].freeze
 
   def self.fixnum_max
     (2**(0.size * 8 - 2) - 1)
@@ -104,6 +114,21 @@ module Helper
 
     # If the following holds, it is inside the margin of the line segment
     projection_scaler >= 0 + 0.5 * margin && projection_scaler <= 1 - 0.5 * margin
+  end
+
+  def self.colorize_balance_loads(balance_loads)
+    balance_loads.collect{ |i|
+      i = i.round(2)
+
+      color_index = 0
+      BALANCE_VIOLATION_COLOR_LIMITS.each{ |cl|
+        break if i <= cl[0] || i >= 2 - cl[0]
+
+        color_index += 1
+      }
+
+      i.to_s.send("#{BALANCE_VIOLATION_COLOR_LIMITS[color_index][1]}#{i > 1 ? 'ish' : ''}")
+    }
   end
 
 end
