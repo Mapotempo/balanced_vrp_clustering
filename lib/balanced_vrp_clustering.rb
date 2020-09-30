@@ -655,9 +655,12 @@ module Ai4r
 
         # TODO: correct the cut_limit wrt cluster "size" as well
 
+        balance_loads = @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f) }
+
         @logger&.debug '_____________________________________________________________________________________________________________'
-        @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f) }.sum.round(2)
-        @logger&.debug @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f).round(3) }.join(',  ')
+        @logger&.debug balance_loads.sum.round(2)
+        @logger&.debug balance_loads.collect{ |i| i.round(2) }.join(', ')
+
 
         stepsize = 0.2 - 0.1 *  @iteration / @max_iterations.to_f # unitless coefficient for making the updates smaller
         max_correction = 1.05 + 0.95 * (@max_iterations - @iteration) / @max_iterations.to_f
@@ -666,7 +669,7 @@ module Ai4r
         @max_balance_violation = 0
 
         @number_of_clusters.times.each{ |index|
-          balance_violation = @centroids[index][3][@cut_symbol] / @cut_limit[index][:limit].to_f - 1.0
+          balance_violation = balance_loads[index] - 1.0
 
           next if !@clusters_with_limit_violation[index].empty? && balance_violation.negative?
 
