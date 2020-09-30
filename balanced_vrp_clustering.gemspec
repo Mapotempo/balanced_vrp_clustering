@@ -14,4 +14,5 @@ Gem::Specification.new do |s|
 
   s.add_dependency "color-generator" # for geojson debug output
   s.add_dependency "geojson2image"   # for geojson debug output
+  s.add_dependency "awesome_print"   # for geojson debug output
 end

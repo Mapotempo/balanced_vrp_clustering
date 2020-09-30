@@ -659,8 +659,7 @@ module Ai4r
 
         @logger&.debug '_____________________________________________________________________________________________________________'
         @logger&.debug balance_loads.sum.round(2)
-        @logger&.debug balance_loads.collect{ |i| i.round(2) }.join(', ')
-
+        @logger&.debug Helper.colorize_balance_loads(balance_loads).join(', ')
 
         stepsize = 0.2 - 0.1 *  @iteration / @max_iterations.to_f # unitless coefficient for making the updates smaller
         max_correction = 1.05 + 0.95 * (@max_iterations - @iteration) / @max_iterations.to_f
