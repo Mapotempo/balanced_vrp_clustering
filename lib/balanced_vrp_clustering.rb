@@ -110,7 +110,7 @@ module Ai4r
 
         @distance_function ||= lambda do |a, b|
           if @distance_matrix
-            @distance_matrix[a[4][:matrix_index]][b[4][:matrix_index]]
+            [@distance_matrix[a[4][:matrix_index]][b[4][:matrix_index]], @distance_matrix[b[4][:matrix_index]][a[4][:matrix_index]]].min
           else
             Helper.flying_distance(a, b)
           end
