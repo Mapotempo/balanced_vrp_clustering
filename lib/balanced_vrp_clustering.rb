@@ -456,9 +456,6 @@ module Ai4r
         end
         @cluster_indices = Array.new(@number_of_clusters){ [] }
 
-        @total_assigned_cut_load = 0
-        @percent_assigned_cut_load = 0
-        @apply_balancing = false
         @data_set.data_items.each{ |data_item|
           cluster_index = evaluate(data_item)
           @clusters[cluster_index] << data_item
@@ -734,13 +731,6 @@ module Ai4r
       def update_metrics(data_item, cluster_index)
         data_item[3].each{ |unit, value|
           @centroids[cluster_index][3][unit] += value.to_f
-          next if unit != @cut_symbol
-
-          @total_assigned_cut_load += value.to_f
-          @percent_assigned_cut_load = @total_assigned_cut_load / @total_cut_load.to_f
-          if !@apply_balancing && @centroids.all?{ |centroid| centroid[3][@cut_symbol].positive? }
-            @apply_balancing = true
-          end
         }
       end
 
