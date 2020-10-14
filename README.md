@@ -56,7 +56,7 @@ data_items = items.collect{ |i|
 }
 cut_symbol = :duration # or any other unit (:unit_1, :unit_2) to be used for balancig clusters
 ratio = 1 # by default, used to over/underestimate vehicles limits
-options[:logger] = Logger.new(STDOUT) # for debug output
+c.logger = Logger.new(STDOUT) # for debug output
 c.build(DataSet.new(data_items: data_items), cut_symbol, ratio, options)```
 
 cut_symbol is the referent unit to use when balancing clusters. This unit should exist in both vehicles and data_items structures.
