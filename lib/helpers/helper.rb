@@ -19,7 +19,11 @@
 require 'awesome_print'
 
 module Helper
-  R = 6378137 # Earth's radius in meters
+  R = 6_378_137 # Earth's radius in meters
+
+  L = 111_321   # Length of a degree (of lon and lat) in meters
+
+  RADIANS_IN_A_DEGREE = Math::PI / 180.0
 
   BALANCE_VIOLATION_COLOR_LIMITS = [
     [0.50, 'red'],
@@ -37,13 +41,13 @@ module Helper
     -(2**(0.size * 8 - 2))
   end
 
-  def self.deg2rad(input)
+  def self.deg2rad(degree)
     # Converts degrees to radians
-    input * Math::PI / 180.0
+    degree * RADIANS_IN_A_DEGREE
   end
 
-  def self.approximate_polygone_area(coordinates)
-    # A rudimentary way to calculate area from coordinates.
+  def self.approximate_polygon_area(coordinates)
+    # A rudimentary way to calculate area (m^2) from coordinates.
     # When the shape is vaguely convex, it gives okay results.
     # https://stackoverflow.com/a/32912727/1200528
     return 0.0 unless coordinates.size > 2
@@ -55,7 +59,7 @@ module Helper
       coor_p = coor
     }
 
-    (area * R * R / 2.0).abs
+    (area * R**2 / 2).abs
   end
 
   def self.flying_distance(loc_a, loc_b)
@@ -69,15 +73,11 @@ module Helper
       return euclidean_distance(loc_a, loc_b)
     end
 
-    deg2rad_lat_a = deg2rad(loc_a[0])
-    deg2rad_lat_b = deg2rad(loc_b[0])
-    deg2rad_lon_a = deg2rad(loc_a[1])
-    deg2rad_lon_b = deg2rad(loc_b[1])
-    lat_distance = deg2rad_lat_b - deg2rad_lat_a
-    lon_distance = deg2rad_lon_b - deg2rad_lon_a
+    deg2rad_loc_a_lat = deg2rad(loc_a[0])
+    deg2rad_loc_b_lat = deg2rad(loc_b[0])
 
-    intermediate = Math.sin(lat_distance / 2) * Math.sin(lat_distance / 2) + Math.cos(deg2rad_lat_a) * Math.cos(deg2rad_lat_b) *
-                   Math.sin(lon_distance / 2) * Math.sin(lon_distance / 2)
+    intermediate = Math.sin((deg2rad_loc_b_lat - deg2rad_loc_a_lat) / 2)**2 +
+                   Math.sin((deg2rad(loc_b[1]) - deg2rad(loc_a[1])) / 2)**2 * Math.cos(deg2rad_loc_b_lat) * Math.cos(deg2rad_loc_a_lat)
 
     R * 2 * Math.atan2(Math.sqrt(intermediate), Math.sqrt(1 - intermediate))
   end
@@ -88,7 +88,7 @@ module Helper
     delta_lat = loc_a[0] - loc_b[0]
     delta_lon = (loc_a[1] - loc_b[1]) * Math.cos(deg2rad((loc_a[0] + loc_b[0]) / 2.0)) # Correct the length of a lon difference with cosine of avereage latitude
 
-    111321 * Math.sqrt(delta_lat**2 + delta_lon**2) # 111321 is the length of a degree (of lon and lat) in meters
+    L * Math.sqrt(delta_lat**2 + delta_lon**2)
   end
 
   def self.unsquared_matrix(matrix, a_indices, b_indices)
@@ -130,7 +130,6 @@ module Helper
       i.to_s.send("#{BALANCE_VIOLATION_COLOR_LIMITS[color_index][1]}#{i > 1 ? 'ish' : ''}")
     }
   end
-
 end
 
 # Some functions for convenience
