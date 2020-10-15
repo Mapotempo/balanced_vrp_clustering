@@ -22,6 +22,7 @@ require './lib/balanced_vrp_clustering'
 
 require 'minitest/reporters'
 Minitest::Reporters.use!
+require 'minitest/around/unit'
 require 'minitest/autorun'
 require 'minitest/stub_any_instance'
 require 'minitest/focus'
@@ -31,9 +32,26 @@ require 'find'
 
 include Ai4r::Data
 
+class Tests < Minitest::Test
+  def around
+    @original_seed ||= Random::DEFAULT.seed
+    yield
+    srand @original_seed
+  end
+end
+
 module Instance
   def self.load_clusterer(filepath)
     data_set, options, ratio = Marshal.load(File.binread(filepath))
+
+    # to make the tests independently repeatable with the same minitest seed
+    @callers ||= Hash.new(0)
+    @seed ||= Random::DEFAULT.seed
+
+    options[:seed] ||= @seed + @callers[caller[0] + filepath]
+    @callers[caller[0] + filepath] += 1
+
+    puts "seed #{options[:seed]}"
 
     options[:vehicles] ||= options.delete(:clusters_infos) || options.delete(:vehicles_infos) # deprecated
 
