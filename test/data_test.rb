@@ -17,7 +17,7 @@
 #
 require './test/test_helper'
 
-class ClusteringTest < Minitest::Test
+class DataTest < Tests
   def test_data_with_matrix
     clusterer, data_set = Instance.two_clusters_4_items_with_matrix
 

@@ -17,7 +17,7 @@
 #
 require './test/test_helper'
 
-class ClusteringTest < Minitest::Test
+class ClusteringTest < Tests
   def test_basic_clustering
     clusterer, data_set = Instance.two_clusters_4_items
     clusterer.build(data_set, :visits)
