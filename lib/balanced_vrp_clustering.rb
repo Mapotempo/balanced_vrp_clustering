@@ -187,6 +187,8 @@ module Ai4r
           end
         end
 
+        mark_the_items_which_needs_to_stay_at_the_top
+
         until stop_criteria_met || @iteration >= @max_iterations
           calculate_membership_clusters
 
@@ -235,7 +237,7 @@ module Ai4r
 
           # if the limt violation leads to more than 2-5 times distance increase, move it
           # otherwise, move it with a probability correlated to the detour it generates
-          if data[2] > [2 * mean_ratio.to_f, 5].min || rand < (data[1] / (3 * mean_distance_diff + 1e-10))
+          if !data[0][4][:needs_to_stay_at_the_top] && (data[2] > [2 * mean_ratio.to_f, 5].min || rand < (data[1] / (3 * mean_distance_diff + 1e-10)))
             point = data[0][0..1]
             centroid_with_violation = @centroids[data[3]][0..1]
             centroid_witout_violation = data[4] && @centroids[data[4]][0..1]
@@ -248,7 +250,7 @@ module Ai4r
             else
               moved_up += 1
               data[0][4][:moved_up] = true if centroid_witout_violation
-              @data_set.data_items.insert(0, @data_set.data_items.delete(data[0]))
+              @data_set.data_items.insert(@needs_to_stay_at_the_top, @data_set.data_items.delete(data[0]))
             end
           end
         end
@@ -611,6 +613,20 @@ module Ai4r
       end
 
       private
+
+      def mark_the_items_which_needs_to_stay_at_the_top
+        @data_set.data_items.each{ |i| i[4][:needs_to_stay_at_the_top] = false }
+        @vehicles.flat_map{ |c| c[:capacities].keys }.uniq.each{ |unit|
+          @data_set.data_items.max_by(@data_set.data_items.size * 0.005 + 1){ |i| i[3][unit].to_f }.each{ |data_item|
+            data_item[4][:needs_to_stay_at_the_top] = true if data_item[3][unit]
+          }
+        }
+        @needs_to_stay_at_the_top = @data_set.data_items.count{ |i| i[4][:needs_to_stay_at_the_top] }
+
+        @data_set.data_items.select{ |i| i[4][:needs_to_stay_at_the_top] }.each{ |item|
+          @data_set.data_items.insert(0, @data_set.data_items.delete(item))
+        }
+      end
 
       def compute_vehicle_work_time_with_depot_and_capacity
         coef = @centroids.map.with_index{ |centroid, index|
