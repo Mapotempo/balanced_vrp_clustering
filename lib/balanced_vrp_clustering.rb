@@ -35,7 +35,7 @@ module Ai4r
     class BalancedVRPClustering < KMeans
       include OverloadableFunctions
 
-      attr_reader :iterations
+      attr_reader :iteration
       attr_reader :cut_limit
 
       parameters_info vehicles: 'Attributes of each cluster to generate. If centroid_indices are provided
@@ -142,6 +142,7 @@ module Ai4r
           vehicle_info[:total_work_days] ||= 1
           vehicle_info[:skills] ||= []
           vehicle_info[:day_skills] ||= %w[0_day_skill 1_day_skill 2_day_skill 3_day_skill 4_day_skill 5_day_skill 6_day_skill]
+          vehicle_info[:vehicle_count] ||= 1
         }
 
         # Initialise the [:centroid_weights][:compatibility] of data_items which need specifique vehicles
@@ -184,6 +185,19 @@ module Ai4r
             range_end = (data_length * 0.9).to_i
             range_begin = [(@centroids.length + data_length * 0.1).to_i, range_end].min
             @data_set.data_items[range_begin..range_end] = @data_set.data_items[range_begin..range_end].shuffle
+
+            @density_cap = Float::EPSILON # used for speed approximation
+            @density_range_ratio = 6
+            @density_speed_conversion_power = 6
+
+            calculate_local_speeds # if we want to use route_time for capacity_checks this needs to taken out of the if block
+
+            area_per_cluster = Helper.approximate_polygon_area(Helper.approximate_quadrilateral_polygon(@data_set.data_items)) / @vehicles.size.to_f
+            speed = @data_set.data_items.collect{ |i| i[4][:local_speed] }.mean
+            visit_count_per_cluster = @data_set.data_items.sum{ |i| i[3][:visits] } / @vehicles.size.to_f
+            total_work_days_per_cluster = @vehicles.sum{ |v| v[:total_work_days] } / @vehicles.size.to_f
+
+            @approximate_total_route_time = Helper.compute_approximate_route_time(area_per_cluster, visit_count_per_cluster, speed, total_work_days_per_cluster) * @vehicles.size
           end
         end
 
@@ -305,11 +319,6 @@ module Ai4r
 
           # correct the distance_from_and_to_depot info of the new cluster with the average of the points
           centroid[4][:duration_from_and_to_depot] = @clusters[index].data_items.map{ |d| d[4][:duration_from_and_to_depot][index] }.reduce(&:+) / @clusters[index].data_items.size.to_f if centroid[4][:duration_from_and_to_depot]
-
-          next unless @cut_symbol
-
-          # move the data_points closest to the centroid centers to the top of the data_items list so that balancing can start early
-          @data_set.data_items.insert(0, @data_set.data_items.delete(point_closest_to_centroid_center))
         }
 
         swap_a_centroid_with_limit_violation
@@ -476,7 +485,10 @@ module Ai4r
         else
           populate_centroids('indices')
         end
-        @centroids.each{ |c| c[4][:capacity_offence_coeff] = 0 }
+        @centroids.each{ |c|
+          c[4][:capacity_offence_coeff] = 0
+          c[4][:route_time] = 0
+        }
       end
 
       def populate_centroids(populate_method, number_of_clusters = @number_of_clusters)
@@ -614,6 +626,34 @@ module Ai4r
 
       private
 
+      def calculate_local_speeds
+        # TODO: Following speed approximation is not efficient, needs to be improved
+        # TODO: Following speed approximation is done with respect to a fixed depot
+        # (first one) it needs to be generalised to multi-depot case...
+        # (maybe with max_by over duration or min_by over calculated speed)
+        # TODO: check the effect of 100 in min_by(100), if decreasing it improves the speed approximation or the performance
+
+        local_max_speed = 60 / 3.6 # meters per second
+        local_min_speed = 5 / 3.6 # meters per second
+
+        @data_set.data_items.each{ |a|
+          a[4][:local_speed] ||= # [[calculated_speed, local_min_speed].max, local_max_speed].min
+            [
+              [
+                @data_set.data_items.select{ |b|
+                  (a[4][:duration_from_and_to_depot][0] - b[4][:duration_from_and_to_depot][0]).abs > 1 && Helper.flying_distance(a, b) > 5
+                }.min_by(100){ |b|
+                  Helper.flying_distance(a, b)
+                }.collect{ |b|
+                  Helper.flying_distance(a, b) / (a[4][:duration_from_and_to_depot][0] - b[4][:duration_from_and_to_depot][0]).abs # m/s (eucledian)
+                }.min(2).sum * 1.1, # duration_from_and_to_depot is two-way, instead of multiplication with 2, take the sum of the first two
+                local_min_speed
+              ].max,
+              local_max_speed
+            ].min
+        }
+      end
+
       def mark_the_items_which_needs_to_stay_at_the_top
         @data_set.data_items.each{ |i| i[4][:needs_to_stay_at_the_top] = false }
         @vehicles.flat_map{ |c| c[:capacities].keys }.uniq.each{ |unit|
@@ -626,6 +666,47 @@ module Ai4r
         @data_set.data_items.select{ |i| i[4][:needs_to_stay_at_the_top] }.each{ |item|
           @data_set.data_items.insert(0, @data_set.data_items.delete(item))
         }
+      end
+
+      def updated_visit_densities
+        # n_visits/m^2
+        @centroids.collect.with_index{ |centroid, index|
+          next if @clusters[index].data_items.empty?
+
+          cp = centroid[4] # centroid properties
+          cp[:area] = [Helper.approximate_polygon_area(Helper.approximate_quadrilateral_polygon(@clusters[index].data_items)), 1.0].max # m^2
+          cp[:visit_count] = @clusters[index].data_items.sum{ |d_i| d_i[3][:visits] }
+          cp[:visit_density] = cp[:visit_count] / cp[:area].to_f
+        }
+      end
+
+      def update_approximate_area_and_speeds
+        @density_cap = [@density_cap, updated_visit_densities.compact.median * @density_range_ratio].max
+
+        @centroids.each_with_index{ |centroid, index|
+          next if @clusters[index].data_items.empty?
+
+          cp = centroid[4] # centroid properties
+          min_speed_calc_size = (0.95 * @clusters[index].data_items.size).ceil
+          max_speed_calc_size = (0.15 * @clusters[index].data_items.size).ceil
+          cp[:min_speed] = @clusters[index].data_items.min_by(min_speed_calc_size){ |i| i[4][:local_speed] }.sum{ |i| i[4][:local_speed] }.to_f / min_speed_calc_size
+          cp[:max_speed] = @clusters[index].data_items.max_by(max_speed_calc_size){ |i| i[4][:local_speed] }.sum{ |i| i[4][:local_speed] }.to_f / max_speed_calc_size
+          speed_ratio = ([@density_cap - cp[:visit_density], 0].max / @density_cap.to_f)**@density_speed_conversion_power
+          cp[:speed] = cp[:min_speed] + [cp[:max_speed] - cp[:min_speed], 0.0].max * speed_ratio
+        }
+      end
+
+      def update_approximate_route_times
+        return unless @cut_symbol
+
+        update_approximate_area_and_speeds
+
+        approximate_total_route_time = @centroids.select{ |c| c[4][:speed] }.sum{ |centroid|
+          cp = centroid[4] # centroid properties
+          cp[:route_time] = Helper.compute_approximate_route_time(cp[:area], cp[:visit_count], cp[:speed], cp[:total_work_days] / cp[:vehicle_count].to_f) * cp[:vehicle_count]
+        }
+
+        @approximate_total_route_time = (9 * @approximate_total_route_time + approximate_total_route_time) / 10.0 if approximate_total_route_time < @approximate_total_route_time
       end
 
       def compute_vehicle_work_time_with_depot_and_capacity
@@ -645,13 +726,19 @@ module Ai4r
         }
       end
 
-      def update_cut_limit_wrt_depot_distance
+      def update_cut_limit_wrt_depot_and_route_time
+        update_approximate_route_times
+
         return unless @cut_symbol == :duration
 
-        # TODO: This functionality is implemented only for duration cut_symbol. Make sure it doesn't interfere with other cut_symbols
-        vehicle_work_time = compute_vehicle_work_time_with_depot_and_capacity
+        # TODO: depot (commute) duration  effects the balance differently (and more directly and strongly)
+        # Check if it is better to leave it like this or including it inside the total_route_time
+        # so that it increases the total_load and shared amongs the clusters.
+
+        vehicle_work_times = compute_vehicle_work_time_with_depot_and_capacity
+        total_vehicle_work_time = vehicle_work_times.sum
         @centroids.size.times{ |index|
-          @cut_limit[index][:limit] = @total_cut_load * vehicle_work_time[index] / total_vehicle_work_times
+          @cut_limit[index][:limit] = (@total_cut_load + @approximate_total_route_time) * vehicle_work_times[index] / total_vehicle_work_time
         }
       end
 
@@ -666,15 +753,18 @@ module Ai4r
       def update_balance_coefficients
         return unless @cut_symbol
 
-        update_cut_limit_wrt_depot_distance
+        update_cut_limit_wrt_depot_and_route_time
 
-        # TODO: correct the cut_limit wrt cluster "size" as well
-
-        balance_loads = @cut_limit.collect.with_index{ |c_l, index| (@centroids[index][3][@cut_symbol] / c_l[:limit].to_f) }
+        balance_violations = @cut_limit.collect.with_index{ |c_l, index|
+          # incase we want to take into account route_time for capacity checks,
+          # protect the balance calculation
+          route_time = @centroids[index][4][:route_time] if @cut_symbol == :duration
+          (@centroids[index][3][@cut_symbol] + route_time.to_f) / c_l[:limit].to_f - 1.0
+        }
 
         @logger&.debug '_____________________________________________________________________________________________________________'
-        @logger&.debug balance_loads.sum.round(2)
-        @logger&.debug Helper.colorize_balance_loads(balance_loads).join(', ')
+        @logger&.debug balance_violations.sum.round(2)
+        @logger&.debug Helper.colorize_balance_violations(balance_violations).join(', ')
 
         stepsize = 0.2 - 0.1 *  @iteration / @max_iterations.to_f # unitless coefficient for making the updates smaller
         max_correction = 1.05 + 0.95 * (@max_iterations - @iteration) / @max_iterations.to_f
@@ -683,16 +773,16 @@ module Ai4r
         @max_balance_violation = 0
 
         @number_of_clusters.times.each{ |index|
-          balance_violation = balance_loads[index] - 1.0
+          # Skip capacity violating clusters even if they are under-loaded
+          # otherwise, they will violate their capacity more
+          next if !@clusters_with_limit_violation[index].empty? && balance_violations[index].negative?
 
-          next if !@clusters_with_limit_violation[index].empty? && balance_violation.negative?
-
-          @max_balance_violation = [@max_balance_violation, balance_violation.abs].max
+          @max_balance_violation = [@max_balance_violation, balance_violations[index].abs].max # ignores capacity violating clusters!
 
           # TODO: if the violation is small don't bother updating the coeff ?
-          # next if balance_violation.abs < @balance_violation_current_limit
+          # next if balance_violations[index].abs < @balance_violation_current_limit
 
-          balance_correction = [[(1 + balance_violation)**stepsize, min_correction].max, max_correction].min
+          balance_correction = [[(1 + balance_violations[index])**stepsize, min_correction].max, max_correction].min
 
           # TODO: stepsize can evolve during the iterations like column-generation
           # it shouldn't lead to extreme zig-zagging but it shouldn't lead to
