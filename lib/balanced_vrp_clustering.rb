@@ -197,6 +197,8 @@ module Ai4r
           recompute_centroids
         end
 
+        Helper.output_cluster_stats(@centroids, @logger)
+
         output_cluster_geojson
 
         self
@@ -765,6 +767,7 @@ module Ai4r
       end
 
       def output_cluster_geojson
+        # TODO: clean the geojson function and move them to helpers
         return unless @geojson_dump_folder
 
         @start_time ||= Time.now.strftime('%H:%M:%S').parameterize

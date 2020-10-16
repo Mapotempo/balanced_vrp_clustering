@@ -130,6 +130,41 @@ module Helper
       i.to_s.send("#{BALANCE_VIOLATION_COLOR_LIMITS[color_index][1]}#{i > 1 ? 'ish' : ''}")
     }
   end
+
+  def self.output_cluster_stats(centroids, logger = nil)
+    # TODO: improve this function with a file option and csv output instead of csv_string
+    return unless logger
+
+    csv_string = CSV.generate do |csv|
+      csv << %w[
+        zone
+        nb_vehicles
+        capacities
+        skills
+        nb_visits
+        total_duration(excel_format)
+        total_visit_duration
+        total_intra_zone_route_duration
+        total_depot_route_duration
+      ]
+
+      centroids.each_with_index{ |c, i|
+        csv << [
+          i + 1,
+          c[4][:vehicle_count],
+          c[4][:capacities],
+          c[4][:skills],
+          c[4][:visit_count],
+          (c[3][:duration] + c[4][:route_time] + c[4][:duration_from_and_to_depot] * c[4][:total_work_days]) / 86400,
+          c[3][:duration] / 86400,
+          c[4][:route_time] / 86400,
+          (c[4][:duration_from_and_to_depot] * c[4][:total_work_days]) / 86400
+        ]
+      }
+    end
+
+    logger&.debug "cluster_stats:\n" + csv_string
+  end
 end
 
 # Some functions for convenience
