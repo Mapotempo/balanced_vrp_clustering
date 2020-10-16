@@ -92,7 +92,7 @@ module Ai4r
           raise ArgumentError, 'Only \'closest\' option is supported for :on_empty parameter'
         end
 
-        if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities].has_key?(cut_symbol) || (cut_symbol == :duration && v_i[:duration]) }
+        if cut_symbol && !@vehicles.all?{ |v_i| v_i[:capacities]&.has_key?(cut_symbol) || (cut_symbol == :duration && v_i[:duration]) }
           # TODO: remove this condition and handle the infinity capacities properly.
           raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
         end

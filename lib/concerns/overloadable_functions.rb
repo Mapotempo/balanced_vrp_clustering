@@ -37,10 +37,11 @@ module OverloadableFunctions
   def compute_limits(cut_symbol, cut_ratio, vehicles, data_items)
     strict_limits = vehicles.collect{ |vehicle|
       s_l = { duration: vehicle[:duration] } # incase duration is not supplied inside the capacities
-      vehicle[:capacities].each{ |unit, limit|
+      vehicle[:capacities]&.each{ |unit, limit|
         s_l[unit] = limit
       }
       vehicle[:duration] = s_l[:duration] # incase duration is only supplied inside the capacities
+      vehicle[:capacities] ||= { duration: s_l[:duration] } # incase capacities field were not suplied at all
       s_l
     }
 
