@@ -27,10 +27,10 @@ module Helper
 
   BALANCE_VIOLATION_COLOR_LIMITS = [
     [0.50, 'red'],
-    [0.75, 'purple'],
-    [0.90, 'blue'],
-    [0.95, 'white'],
-    [1.00, 'green']
+    [0.25, 'purple'],
+    [0.10, 'blue'],
+    [0.05, 'white'],
+    [0.00, 'green']
   ].freeze
 
   def self.fixnum_max
@@ -60,6 +60,60 @@ module Helper
     }
 
     (area * R**2 / 2).abs
+  end
+
+  def self.approximate_quadrilateral_polygon(coordinates)
+    # Approximates the tetragon of a coordinate list.
+    # First two very distant points (c1 and c2) are selected based on a
+    # random distant point crand and c0.
+    # Then two more points (c3 and c4) are selected on each side of the
+    # line created by c1-c2 to maximize the coverage.
+
+    # c1 and c2 are approximately the most distant two points.
+    crand = coordinates[rand(coordinates.size)]
+    c0 = coordinates.max_by{ |c_i| Helper.flying_distance(crand, c_i) }
+    c1 = coordinates.max_by{ |c_i| Helper.flying_distance(c0, c_i) }
+    c2 = coordinates.max_by{ |c_i| Helper.flying_distance(c1, c_i) }
+
+    # find two points (c3 and c4) on each side of the line passing through c1 and c2
+    # which are the farthest away from the line.
+    c3 = c4 = nil
+    max_distance = { up: 0, down: 0 }
+    coordinates.each{ |c_i|
+      position, distance_to_line = position_and_distance_to_line(c1, c2, c_i)
+
+      if position.positive? && distance_to_line > max_distance[:up]
+        max_distance[:up] = distance_to_line
+        c3 = c_i
+      elsif position.negative? && distance_to_line > max_distance[:down]
+        max_distance[:down] = distance_to_line
+        c4 = c_i
+      end
+    }
+
+    # in case it is a triangle compact it
+    [c1, c3, c2, c4, c1].compact
+  end
+
+  def self.position_and_distance_to_line(l_begin, l_end, point)
+    # position and aproximate distance of a point to the line passing through points (l_begin, l_end)
+    lat_diff = l_end[0] - l_begin[0]
+    lon_diff = l_end[1] - l_begin[1]
+
+    [
+      position = lat_diff * (point[1] - l_begin[1]) - lon_diff * (point[0] - l_begin[0]),
+      position.abs / Math.sqrt(lat_diff**2 + lon_diff**2)
+    ]
+  end
+
+  def self.compute_approximate_route_time(area, visit_count, speed, total_work_days)
+    # Based on Equation (6) of doi:10.1016/j.cor.2004.07.001
+
+    k1 = 0.765    # a coefficient that depends on the distance metric and routing strategy
+    k2 = 1.45     # is a corrective coefficient (route factor) reflecting the road network impedance
+    k0 = k1 * k2
+
+    total_work_days * k0 * Math.sqrt(area * visit_count / total_work_days**1.5) / speed.to_f
   end
 
   def self.flying_distance(loc_a, loc_b)
@@ -116,18 +170,18 @@ module Helper
     projection_scaler >= 0 + 0.5 * margin && projection_scaler <= 1 - 0.5 * margin
   end
 
-  def self.colorize_balance_loads(balance_loads)
-    balance_loads.collect{ |i|
+  def self.colorize_balance_violations(balance_violations)
+    balance_violations.collect{ |i|
       i = i.round(2)
 
       color_index = 0
       BALANCE_VIOLATION_COLOR_LIMITS.each{ |cl|
-        break if i <= cl[0] || i >= 2 - cl[0]
+        break if i.abs >= cl[0]
 
         color_index += 1
       }
 
-      i.to_s.send("#{BALANCE_VIOLATION_COLOR_LIMITS[color_index][1]}#{i > 1 ? 'ish' : ''}")
+      i.to_s.send("#{BALANCE_VIOLATION_COLOR_LIMITS[color_index][1]}#{i.negative? ? 'ish' : ''}")
     }
   end
 
