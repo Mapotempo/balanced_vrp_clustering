@@ -17,7 +17,7 @@
 #
 require './test/test_helper'
 
-class FunctionsTest < Minitest::Test
+class FunctionsTest < Tests
   include OverloadableFunctions
 
   def test_compatible_characteristics

@@ -1,7 +1,8 @@
 PATH
   remote: .
   specs:
-    balanced_vrp_clustering (0.1.6)
+    balanced_vrp_clustering (0.1.7)
+      awesome_print
       color-generator
       geojson2image
 
@@ -17,6 +18,7 @@ GEM
     ansi (1.5.0)
     anyway_config (1.4.4)
     ast (2.4.0)
+    awesome_print (1.8.0)
     backport (0.3.0)
     benchmark-ips (2.7.2)
     builder (3.2.4)
@@ -151,4 +153,3 @@ DEPENDENCIES
 
 RUBY VERSION
    ruby 2.3.3p222
-

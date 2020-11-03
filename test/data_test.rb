@@ -17,19 +17,21 @@
 #
 require './test/test_helper'
 
-class ClusteringTest < Minitest::Test
+class DataTest < Tests
   def test_data_with_matrix
     clusterer, data_set = Instance.two_clusters_4_items_with_matrix
-    clusterer.vehicles.first[:depot] = {}
+
+    # make one duration_from_to_depot incorrect
+    data_set.data_items.first[4][:duration_from_and_to_depot] = [1, 2, 3]
 
     assert_raises ArgumentError do
       clusterer.build(data_set, :visits)
     end
 
-    clusterer.vehicles.first[:depot] = {
-      matrix_index: 0,
-      coordinates: [45.604784, 4.758965]
-    } # back to normal vehicles
+    # back to normal duration_from_and_to_depot
+    data_set.data_items.first[4][:duration_from_and_to_depot] = [1, 2]
+    clusterer.build(data_set, :visits)
+
     data_set.data_items.first[4].delete(:matrix_index)
     assert_raises ArgumentError do
       clusterer.build(data_set, :visits)
