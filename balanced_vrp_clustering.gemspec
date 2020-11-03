@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name = 'balanced_vrp_clustering'
-  s.version = '0.1.6'
-  s.date = '2020-08-05'
+  s.version = '0.1.7'
+  s.date = '2020-08-13'
   s.summary = 'Gem to clusterize points of a given VRP.'
   s.authors = 'Mapotempo'
   s.files = %w[
@@ -14,4 +14,5 @@ Gem::Specification.new do |s|
 
   s.add_dependency "color-generator" # for geojson debug output
   s.add_dependency "geojson2image"   # for geojson debug output
+  s.add_dependency "awesome_print"   # for geojson debug output
 end

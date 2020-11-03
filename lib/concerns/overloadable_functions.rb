@@ -34,44 +34,14 @@ module OverloadableFunctions
     true # if not, they are compatible
   end
 
-  def compute_distance_from_and_to_depot(vehicles, data_set, matrix)
-    return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot]&.any? }
-
-    # TODO: check if we always need duration_from_and_to_depot (even if the vehicles don't have a duration limit)
-
-    data_set.data_items.each{ |point|
-      point[4][:duration_from_and_to_depot] = []
-    }
-
-    vehicles.each{ |vehicle_info|
-      if matrix
-        single_index_array = [vehicle_info[:depot][:matrix_index]]
-        point_indices = data_set.data_items.map{ |point| point[4][:matrix_index] }
-        time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
-        time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
-      else
-        items_locations = data_set.data_items.collect{ |point| [point[0], point[1]] }
-        time_matrix_from_depot = [items_locations.collect{ |item_location|
-          Helper.euclidean_distance(vehicle_info[:depot][:coordinates], item_location)
-        }]
-        time_matrix_to_depot = items_locations.collect{ |item_location|
-          [Helper.euclidean_distance(item_location, vehicle_info[:depot][:coordinates])]
-        }
-      end
-
-      data_set.data_items.each_with_index{ |point, index|
-        point[4][:duration_from_and_to_depot] << time_matrix_from_depot[0][index] + time_matrix_to_depot[index][0]
-      }
-    }
-  end
-
   def compute_limits(cut_symbol, cut_ratio, vehicles, data_items)
     strict_limits = vehicles.collect{ |vehicle|
       s_l = { duration: vehicle[:duration] } # incase duration is not supplied inside the capacities
-      vehicle[:capacities].each{ |unit, limit|
+      vehicle[:capacities]&.each{ |unit, limit|
         s_l[unit] = limit
       }
       vehicle[:duration] = s_l[:duration] # incase duration is only supplied inside the capacities
+      vehicle[:capacities] ||= { duration: s_l[:duration] } # incase capacities field were not suplied at all
       s_l
     }
 

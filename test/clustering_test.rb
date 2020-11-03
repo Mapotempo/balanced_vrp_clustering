@@ -17,7 +17,7 @@
 #
 require './test/test_helper'
 
-class ClusteringTest < Minitest::Test
+class ClusteringTest < Tests
   def test_basic_clustering
     clusterer, data_set = Instance.two_clusters_4_items
     clusterer.build(data_set, :visits)
@@ -120,32 +120,34 @@ class ClusteringTest < Minitest::Test
       max_balance_deviation = 0
 
       clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/cluster_balance.bindump')
-      units = data_set.data_items.collect{ |i| i[3].keys }.flatten.uniq
+
+      # Remove vehicle capacities so that capacity is not the limiting factor.
+      # Otherwise, checking the balance doesn't make sense beucase this is a dicho-type split.
+      clusterer.vehicles.each{ |v_i|
+        v_i.delete(:capacities)
+        v_i[:duration] = 500000
+      }
 
       while data_set.data_items.size > 100
         number_of_items_expected = data_set.data_items.size
 
-        total_load_by_units = Hash.new(0)
-        data_set.data_items.each{ |item| item[3].each{ |unit, quantity| total_load_by_units[unit] += quantity if units.include? unit} }
-        # Adapt each vehicle capacity according to items to clusterize
-        clusterer.vehicles.each{ |v_i|
-          v_i[:capacities] = {}
-          total_load_by_units.collect{ |unit, quantity|
-            v_i[:capacities][unit] = quantity * 0.65
-          }
-        }
-
-        clusterer.build(data_set, options[:cut_symbol], ratio, entity: :vehicle)
+        clusterer.build(data_set, options[:cut_symbol], ratio, options)
 
         repartition = clusterer.clusters.collect{ |c| c.data_items.size }
         puts "#{number_of_items_expected} items divided in into #{repartition}"
-        durations = clusterer.clusters.collect{ |c| c.data_items.collect{ |item| item[3][:duration] }.reduce(&:+) }
+
+        # Check balance wrt total_duration not just service_duration
+        service_durations = clusterer.clusters.collect{ |c| c.data_items.sum{ |item| item[3][:duration] } }
+        route_times = clusterer.centroids.collect{ |c| c[4][:route_time] }
+        depot_durations = clusterer.centroids.collect{ |c| c[4][:duration_from_and_to_depot] }
+        total_durations = [0, 1].collect{ |i| service_durations[i] + route_times[i] + depot_durations[i] }
 
         assert_equal 2, clusterer.clusters.size, 'The number of clusters is not correct'
-        assert_equal number_of_items_expected, repartition.reduce(&:+), 'Some items are missing'
-        assert_equal data_set.data_items.collect{ |i| i[3][:duration] }.reduce(&:+), durations.reduce(&:+), 'The sum of service durations is not correct'
+        assert_equal number_of_items_expected, repartition.sum, 'Some items are missing'
+        assert_equal data_set.data_items.sum{ |i| i[3][:duration] }, service_durations.sum, 'The sum of service durations is not correct'
+        assert_equal clusterer.centroids.collect{ |c| c[3][:duration] }, service_durations, 'Internal service duration statistics are not correct'
 
-        max_balance_deviation = [max_balance_deviation, durations.max.to_f / durations.reduce(&:+) * 2 - 1].max
+        max_balance_deviation = [max_balance_deviation, 1 - total_durations.min / total_durations.max].max
 
         data_set.data_items.delete_if{ |item| clusterer.clusters.first.data_items.none?{ |i| i[2] == item[2] } }
       end
@@ -153,6 +155,7 @@ class ClusteringTest < Minitest::Test
       balance_deviations << max_balance_deviation
     }
 
+    # TODO: fix the following statistics and limits
     # The limits of max_dev and the RHS of the asserts represent the current performance of the clustering algorighm.
     # The limit values are tightest possible to ensure that any degredation would trip the assert.
     # False negative are rare, once every ~10 runs on local and once every ~30 runs on Travis.
@@ -191,6 +194,8 @@ class ClusteringTest < Minitest::Test
   def test_avoid_capacities_overlap
     # from test_avoid_capacities_overlap in optimizer-api project
     # depending on the seed, sometimes it doesn't pass -- 1 out of 10
+    # it is because points with huge quantities which came last
+    # TODO: we should handle these extreme cases better
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/avoid_capacities_overlap.bindump')
 
     clusterer.build(data_set, options[:cut_symbol], ratio, options)

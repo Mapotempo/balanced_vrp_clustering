@@ -16,8 +16,22 @@
 # <http://www.gnu.org/licenses/agpl.html>
 #
 
+require 'awesome_print'
+
 module Helper
-  R = 6378137 # Earth's radius in meters
+  R = 6_378_137 # Earth's radius in meters
+
+  L = 111_321   # Length of a degree (of lon and lat) in meters
+
+  RADIANS_IN_A_DEGREE = Math::PI / 180.0
+
+  BALANCE_VIOLATION_COLOR_LIMITS = [
+    [0.50, 'red'],
+    [0.25, 'purple'],
+    [0.10, 'blue'],
+    [0.05, 'white'],
+    [0.00, 'green']
+  ].freeze
 
   def self.fixnum_max
     (2**(0.size * 8 - 2) - 1)
@@ -27,13 +41,13 @@ module Helper
     -(2**(0.size * 8 - 2))
   end
 
-  def self.deg2rad(input)
+  def self.deg2rad(degree)
     # Converts degrees to radians
-    input * Math::PI / 180.0
+    degree * RADIANS_IN_A_DEGREE
   end
 
-  def self.approximate_polygone_area(coordinates)
-    # A rudimentary way to calculate area from coordinates.
+  def self.approximate_polygon_area(coordinates)
+    # A rudimentary way to calculate area (m^2) from coordinates.
     # When the shape is vaguely convex, it gives okay results.
     # https://stackoverflow.com/a/32912727/1200528
     return 0.0 unless coordinates.size > 2
@@ -45,7 +59,61 @@ module Helper
       coor_p = coor
     }
 
-    (area * R * R / 2.0).abs
+    (area * R**2 / 2).abs
+  end
+
+  def self.approximate_quadrilateral_polygon(coordinates)
+    # Approximates the tetragon of a coordinate list.
+    # First two very distant points (c1 and c2) are selected based on a
+    # random distant point crand and c0.
+    # Then two more points (c3 and c4) are selected on each side of the
+    # line created by c1-c2 to maximize the coverage.
+
+    # c1 and c2 are approximately the most distant two points.
+    crand = coordinates[rand(coordinates.size)]
+    c0 = coordinates.max_by{ |c_i| Helper.flying_distance(crand, c_i) }
+    c1 = coordinates.max_by{ |c_i| Helper.flying_distance(c0, c_i) }
+    c2 = coordinates.max_by{ |c_i| Helper.flying_distance(c1, c_i) }
+
+    # find two points (c3 and c4) on each side of the line passing through c1 and c2
+    # which are the farthest away from the line.
+    c3 = c4 = nil
+    max_distance = { up: 0, down: 0 }
+    coordinates.each{ |c_i|
+      position, distance_to_line = position_and_distance_to_line(c1, c2, c_i)
+
+      if position.positive? && distance_to_line > max_distance[:up]
+        max_distance[:up] = distance_to_line
+        c3 = c_i
+      elsif position.negative? && distance_to_line > max_distance[:down]
+        max_distance[:down] = distance_to_line
+        c4 = c_i
+      end
+    }
+
+    # in case it is a triangle compact it
+    [c1, c3, c2, c4, c1].compact
+  end
+
+  def self.position_and_distance_to_line(l_begin, l_end, point)
+    # position and aproximate distance of a point to the line passing through points (l_begin, l_end)
+    lat_diff = l_end[0] - l_begin[0]
+    lon_diff = l_end[1] - l_begin[1]
+
+    [
+      position = lat_diff * (point[1] - l_begin[1]) - lon_diff * (point[0] - l_begin[0]),
+      position.abs / Math.sqrt(lat_diff**2 + lon_diff**2)
+    ]
+  end
+
+  def self.compute_approximate_route_time(area, visit_count, speed, total_work_days)
+    # Based on Equation (6) of doi:10.1016/j.cor.2004.07.001
+
+    k1 = 0.765    # a coefficient that depends on the distance metric and routing strategy
+    k2 = 1.45     # is a corrective coefficient (route factor) reflecting the road network impedance
+    k0 = k1 * k2
+
+    total_work_days * k0 * Math.sqrt(area * visit_count / total_work_days**1.5) / speed.to_f
   end
 
   def self.flying_distance(loc_a, loc_b)
@@ -59,15 +127,11 @@ module Helper
       return euclidean_distance(loc_a, loc_b)
     end
 
-    deg2rad_lat_a = deg2rad(loc_a[0])
-    deg2rad_lat_b = deg2rad(loc_b[0])
-    deg2rad_lon_a = deg2rad(loc_a[1])
-    deg2rad_lon_b = deg2rad(loc_b[1])
-    lat_distance = deg2rad_lat_b - deg2rad_lat_a
-    lon_distance = deg2rad_lon_b - deg2rad_lon_a
+    deg2rad_loc_a_lat = deg2rad(loc_a[0])
+    deg2rad_loc_b_lat = deg2rad(loc_b[0])
 
-    intermediate = Math.sin(lat_distance / 2) * Math.sin(lat_distance / 2) + Math.cos(deg2rad_lat_a) * Math.cos(deg2rad_lat_b) *
-                   Math.sin(lon_distance / 2) * Math.sin(lon_distance / 2)
+    intermediate = Math.sin((deg2rad_loc_b_lat - deg2rad_loc_a_lat) / 2)**2 +
+                   Math.sin((deg2rad(loc_b[1]) - deg2rad(loc_a[1])) / 2)**2 * Math.cos(deg2rad_loc_b_lat) * Math.cos(deg2rad_loc_a_lat)
 
     R * 2 * Math.atan2(Math.sqrt(intermediate), Math.sqrt(1 - intermediate))
   end
@@ -78,7 +142,7 @@ module Helper
     delta_lat = loc_a[0] - loc_b[0]
     delta_lon = (loc_a[1] - loc_b[1]) * Math.cos(deg2rad((loc_a[0] + loc_b[0]) / 2.0)) # Correct the length of a lon difference with cosine of avereage latitude
 
-    111321 * Math.sqrt(delta_lat**2 + delta_lon**2) # 111321 is the length of a degree (of lon and lat) in meters
+    L * Math.sqrt(delta_lat**2 + delta_lon**2)
   end
 
   def self.unsquared_matrix(matrix, a_indices, b_indices)
@@ -106,6 +170,55 @@ module Helper
     projection_scaler >= 0 + 0.5 * margin && projection_scaler <= 1 - 0.5 * margin
   end
 
+  def self.colorize_balance_violations(balance_violations)
+    balance_violations.collect{ |i|
+      i = i.round(2)
+
+      color_index = 0
+      BALANCE_VIOLATION_COLOR_LIMITS.each{ |cl|
+        break if i.abs >= cl[0]
+
+        color_index += 1
+      }
+
+      i.to_s.send("#{BALANCE_VIOLATION_COLOR_LIMITS[color_index][1]}#{i.negative? ? 'ish' : ''}")
+    }
+  end
+
+  def self.output_cluster_stats(centroids, logger = nil)
+    # TODO: improve this function with a file option and csv output instead of csv_string
+    return unless logger
+
+    csv_string = CSV.generate do |csv|
+      csv << %w[
+        zone
+        nb_vehicles
+        capacities
+        skills
+        nb_visits
+        total_duration(excel_format)
+        total_visit_duration
+        total_intra_zone_route_duration
+        total_depot_route_duration
+      ]
+
+      centroids.each_with_index{ |c, i|
+        csv << [
+          i + 1,
+          c[4][:vehicle_count],
+          c[4][:capacities],
+          c[4][:skills],
+          c[4][:visit_count],
+          (c[3][:duration] + c[4][:route_time] + c[4][:duration_from_and_to_depot] * c[4][:total_work_days]) / 86400,
+          c[3][:duration] / 86400,
+          c[4][:route_time] / 86400,
+          (c[4][:duration_from_and_to_depot] * c[4][:total_work_days]) / 86400
+        ]
+      }
+    end
+
+    logger&.debug "cluster_stats:\n" + csv_string
+  end
 end
 
 # Some functions for convenience
@@ -133,9 +246,9 @@ module Enumerable
   def median(already_sorted = false)
     return nil if empty?
 
-    sort! unless already_sorted
+    ret = already_sorted ? self : sort
     m_pos = size / 2 # no to_f!
-    size.odd? ? self[m_pos] : self[m_pos - 1..m_pos].mean
+    size.odd? ? ret[m_pos] : ret[m_pos - 1..m_pos].mean
   end
 
   # The mode is the single most popular item in the array.

@@ -22,6 +22,7 @@ require './lib/balanced_vrp_clustering'
 
 require 'minitest/reporters'
 Minitest::Reporters.use!
+require 'minitest/around/unit'
 require 'minitest/autorun'
 require 'minitest/stub_any_instance'
 require 'minitest/focus'
@@ -31,18 +32,61 @@ require 'find'
 
 include Ai4r::Data
 
+class Tests < Minitest::Test
+  def around
+    @original_seed ||= Random::DEFAULT.seed
+    yield
+    srand @original_seed
+  end
+end
+
 module Instance
   def self.load_clusterer(filepath)
     data_set, options, ratio = Marshal.load(File.binread(filepath))
 
+    # to make the tests independently repeatable with the same minitest seed
+    @callers ||= Hash.new(0)
+    @seed ||= Random::DEFAULT.seed
+
+    options[:seed] ||= @seed + @callers[caller[0] + filepath]
+    @callers[caller[0] + filepath] += 1
+
+    puts "seed #{options[:seed]}"
+
+    options[:vehicles] ||= options.delete(:clusters_infos) || options.delete(:vehicles_infos) # deprecated
+
+    Instance.compute_duration_from_and_to_depot(options[:vehicles], data_set, options[:distance_matrix]) # duration_from_and_to_depot moved to user side
+
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
     clusterer.max_iterations = options[:max_iterations]
     clusterer.distance_matrix = options[:distance_matrix]
-    clusterer.vehicles = options[:clusters_infos]
+    clusterer.vehicles = options[:vehicles]
     clusterer.centroid_indices = options[:centroid_indices] || []
 
     [clusterer, data_set, options, ratio]
   end
+
+  def self.compute_duration_from_and_to_depot(vehicles, data_set, matrix)
+    # TODO: check if we always need duration_from_and_to_depot (even if the vehicles don't have a duration limit)
+
+    return if data_set.data_items.all?{ |item| item[4][:duration_from_and_to_depot]&.size.to_f == vehicles.size }
+
+    raise 'matrix is mandatory for automatic _duration_from_and_to_depot calculation' if matrix.nil? || matrix.empty? || matrix.any?{ |row| row.empty? }
+
+    data_set.data_items.each{ |point| point[4][:duration_from_and_to_depot] = [] }
+
+    vehicles.each{ |vehicle_info|
+      single_index_array = [vehicle_info[:depot][:matrix_index]]
+      point_indices = data_set.data_items.map{ |point| point[4][:matrix_index] }
+      time_matrix_from_depot = Helper.unsquared_matrix(matrix, single_index_array, point_indices)
+      time_matrix_to_depot = Helper.unsquared_matrix(matrix, point_indices, single_index_array)
+
+      data_set.data_items.each_with_index{ |point, index|
+        point[4][:duration_from_and_to_depot] << time_matrix_from_depot[0][index] + time_matrix_to_depot[index][0]
+      }
+    }
+  end
+
 
   def self.two_clusters_4_items
     clusterer = Ai4r::Clusterers::BalancedVRPClustering.new
