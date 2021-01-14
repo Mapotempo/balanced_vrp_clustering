@@ -929,6 +929,8 @@ module Ai4r
       end
 
       def collect_hulls(cluster, c_index)
+        return [] if cluster.data_items.empty?
+
         color = @geojson_colors[c_index]
 
         vector = cluster.data_items.collect{ |item|
