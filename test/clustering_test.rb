@@ -212,19 +212,18 @@ class ClusteringTest < Tests
   def test_less_items_than_clusters
     clusterer, data_set = Instance.two_clusters_4_items_with_matrix
     data_set = DataSet.new(data_items: [data_set.data_items[0]])
+    clusterer.max_iterations = 1 # no need to do more iterations
 
-    # 2 clusters, only 1 data_item :
-    clusterer.build(data_set, :visits)
+    clusterer.build(data_set, :visits) # without output its okay
 
+    # 2 clusters, only 1 data_item
     assert_equal 2, clusterer.clusters.size
     assert_equal 1, (clusterer.clusters.sum{ |cluster| cluster.data_items.size })
 
-    # try with output requested
-    clusterer.geojson_dump_folder = 'test/temp'
-    clusterer.build(data_set, :visits)
-  ensure
-    Find.find('test/temp').each{ |file|
-      File.delete(file) unless file == 'test/temp'
-    }
+    Dir.mktmpdir('temp_', 'test/') do |tmpdir|
+      clusterer.geojson_dump_folder = tmpdir # try with output
+      clusterer.geojson_dump_freq = 1
+      clusterer.build(data_set, :visits)
+    end
   end
 end
