@@ -30,6 +30,8 @@ require 'helpers/hull.rb'
 require 'color-generator'
 require 'geojson2image'
 
+INCOMPATIBILITY_DISTANCE_PENALTY = 2**32
+
 module Ai4r
   module Clusterers
     class BalancedVRPClustering < KMeans
@@ -69,7 +71,7 @@ module Ai4r
 
         # First of all, set and display the seed
         options[:seed] ||= Random.new_seed
-        @logger&.debug "Clustering with seed=#{options[:seed]}"
+        @logger&.info "Clustering with seed=#{options[:seed]}"
         srand options[:seed]
 
         # DEPRECATED variables (to be removed before public release)
@@ -429,7 +431,7 @@ module Ai4r
         distances = @centroids.collect.with_index{ |centroid, cluster_index|
           dist = distance(data_item, centroid, cluster_index)
 
-          dist += 2**32 unless @compatibility_function.call(data_item, centroid)
+          dist += INCOMPATIBILITY_DISTANCE_PENALTY unless @compatibility_function.call(data_item, centroid)
 
           dist
         }
@@ -437,7 +439,7 @@ module Ai4r
         closest_cluster_index = get_min_index(distances)
 
         if capactity_violation?(data_item, closest_cluster_index)
-          mininimum_without_limit_violation = 2**32 # only consider compatible ones
+          mininimum_without_limit_violation = INCOMPATIBILITY_DISTANCE_PENALTY # only consider compatible ones
           closest_cluster_wo_violation_index = nil
           @number_of_clusters.times{ |k|
             next unless distances[k] < mininimum_without_limit_violation &&
@@ -480,11 +482,15 @@ module Ai4r
 
         @data_set.data_items.each{ |data_item|
           cluster_index = evaluate(data_item)
-          @clusters[cluster_index] << data_item
+          assign_item(data_item, cluster_index)
           update_metrics(data_item, cluster_index)
         }
 
         manage_empty_clusters if has_empty_cluster?
+      end
+
+      def assign_item(data_item, cluster_index)
+        @clusters[cluster_index] << data_item
       end
 
       def calc_initial_centroids
