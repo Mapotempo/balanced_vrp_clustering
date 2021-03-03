@@ -381,7 +381,14 @@ module Ai4r
           next if already_swapped_a_centroid
 
           favorite_cluster = favorite_clusters.min_by{ |c, index|
-            the_units_that_matter.sum{ |unit| c[3][unit].to_f / @strict_limitations[index][unit] * (rand(0.90) + 0.1) } # give others some chance with randomness
+            the_units_that_matter.sum{ |unit|
+              if @strict_limitations[index][unit].nil?
+                0
+              else
+                # give others some chance with randomness
+                c[3][unit].to_f / @strict_limitations[index][unit] * (rand(0.90) + 0.1)
+              end
+            }
           }[1] # index of the minimum
 
           # TODO: we need to understand why the folling if condition happens:
