@@ -35,6 +35,9 @@ INCOMPATIBILITY_DISTANCE_PENALTY = 2**32
 module Ai4r
   module Clusterers
     class BalancedVRPClustering < KMeans
+      LINKING_RELATIONS = %i[order same_route sequence shipment].freeze
+      BINDING_RELATIONS = %i[order same_route sequence].freeze
+
       include OverloadableFunctions
 
       attr_reader :iteration
@@ -59,7 +62,7 @@ module Ai4r
         @on_empty = 'closest' # the other options are not available
       end
 
-      def build(data_set, cut_symbol, cut_ratio = 1.0, options = {})
+      def build(data_set, cut_symbol, related_item_indices = {}, cut_ratio = 1.0, options = {})
         # Build a new clusterer, using data items found in data_set.
         # Items will be clustered in "number_of_clusters" different
         # clusters. Each item is defined by :
@@ -100,6 +103,8 @@ module Ai4r
           # TODO: remove this condition and handle the infinity capacities properly.
           raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
         end
+
+        connect_linked_items(data_set.data_items, related_item_indices)
 
         ### values ###
         @data_set = data_set
@@ -222,6 +227,57 @@ module Ai4r
         output_cluster_geojson
 
         self
+      end
+
+      def connect_linked_items(data_items, related_item_indices)
+        (LINKING_RELATIONS | BINDING_RELATIONS).each{ |relation|
+          related_item_indices[relation]&.each{ |linked_indices|
+            raise ArgumentError, 'Each relation group of related_item_indices should contain only unique indices' unless linked_indices.uniq.size == linked_indices.size
+          }
+        }
+
+        (LINKING_RELATIONS - BINDING_RELATIONS).each{ |relation|
+          related_item_indices[relation]&.each{ |linked_indices|
+            raise ArgumentError, 'A service should not appear in multiple non-binding linking relations' if linked_indices.any?{ |ind| data_items[ind][4].key?(:linked_item) }
+
+            linked_indices << linked_indices.first # create a loop
+            (linked_indices.size - 1).times{ |i|
+              item = data_items[linked_indices[i]]
+              next_item = data_items[linked_indices[i + 1]]
+              item[4][:linked_item] = next_item
+            }
+          }
+        }
+
+        BINDING_RELATIONS.each{ |relation|
+          related_item_indices[relation]&.each{ |linked_indices|
+            linked_indices << linked_indices.first # create a loop
+            (linked_indices.size - 1).times{ |i|
+              item = data_items[linked_indices[i]]
+              next_item = data_items[linked_indices[i + 1]]
+              if !item[4].key?(:linked_item) && !next_item[4].key?(:linked_item)
+                item[4][:linked_item] = next_item
+              elsif item[4].key?(:linked_item) && next_item[4].key?(:linked_item)
+                # either there are two loops to join together or these items are already connected via loop
+                first_loop_end = item
+                item = item[4][:linked_item] while [first_loop_end, next_item].exclude? item[4][:linked_item]
+                next if item[4][:linked_item] == next_item # connected via loop, nothing to do
+
+                second_loop_end = next_item
+                next_item = next_item[4][:linked_item] while next_item[4][:linked_item] != second_loop_end
+
+                item[4][:linked_item] = second_loop_end
+                next_item[4][:linked_item] = first_loop_end
+              else
+                next_item, item = item, next_item if item[4].key?(:linked_item)
+                item[4][:linked_item] = next_item
+                loop_end = next_item
+                next_item = next_item[4][:linked_item] while next_item[4][:linked_item] != loop_end
+                next_item[4][:linked_item] = item unless next_item == item
+              end
+            }
+          }
+        }
       end
 
       def move_limit_violating_dataitems
