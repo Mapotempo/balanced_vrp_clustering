@@ -478,7 +478,6 @@ module Ai4r
         @clusters = Array.new(@number_of_clusters) do
           Ai4r::Data::DataSet.new data_labels: @data_set.data_labels
         end
-        @cluster_indices = Array.new(@number_of_clusters){ [] }
 
         @data_set.data_items.each{ |data_item|
           cluster_index = evaluate(data_item)
@@ -615,22 +614,6 @@ module Ai4r
 
           empty_cluster.data_items << closest[2].data_items.delete(closest[1])
         }
-      end
-
-      def eliminate_empty_clusters
-        old_clusters, old_centroids, old_cluster_indices = @clusters, @centroids, @cluster_indices
-        @clusters, @centroids, @cluster_indices = [], [], []
-        @remaining_skills = []
-        @number_of_clusters.times do |i|
-          if old_clusters[i].data_items.empty?
-            @remaining_skills << old_centroids[i][4]
-          else
-            @clusters << old_clusters[i]
-            @cluster_indices << old_cluster_indices[i]
-            @centroids << old_centroids[i]
-          end
-        end
-        @number_of_clusters = @centroids.length
       end
 
       def stop_criteria_met
