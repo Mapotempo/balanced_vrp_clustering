@@ -524,7 +524,11 @@ module Ai4r
       protected
 
       def distance(data_item, centroid, cluster_index)
-        @distance_function.call(data_item, centroid) * @balance_coeff[cluster_index]
+        total_dist = 0
+
+        do_forall_linked_items_of(data_item){ |linked_item| total_dist += @distance_function.call(linked_item, centroid) }
+
+        total_dist * @balance_coeff[cluster_index]
       end
 
       def calculate_membership_clusters
@@ -535,16 +539,24 @@ module Ai4r
           Ai4r::Data::DataSet.new data_labels: @data_set.data_labels
         end
 
+        @already_assigned = Hash.new{ |h, k| h[k] = false }
+
         @data_set.data_items.each{ |data_item|
+          next if @already_assigned[data_item] # another item with a relation handled this item
+
           cluster_index = evaluate(data_item)
-          assign_item(data_item, cluster_index)
-          update_metrics(data_item, cluster_index)
+
+          do_forall_linked_items_of(data_item){ |linked_item|
+            assign_item(linked_item, cluster_index)
+            update_metrics(linked_item, cluster_index)
+          }
         }
 
         manage_empty_clusters if has_empty_cluster?
       end
 
       def assign_item(data_item, cluster_index)
+        @already_assigned[data_item] = true
         @clusters[cluster_index] << data_item
       end
 
@@ -706,6 +718,14 @@ module Ai4r
               local_max_speed
             ].min
         }
+      end
+
+      def do_forall_linked_items_of(item)
+        linked_item = nil
+        until linked_item == item
+          linked_item = (linked_item && linked_item[4][:linked_item]) || item[4][:linked_item] || item
+          yield(linked_item)
+        end
       end
 
       def mark_the_items_which_needs_to_stay_at_the_top
