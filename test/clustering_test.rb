@@ -253,4 +253,24 @@ class ClusteringTest < Tests
     clusterer.connect_linked_items(data_items, { same_route: [[0, 1, 2]] })
     assert_equal([1, 2, 0, nil], data_items.collect{ |item| data_items.index(item[4][:linked_item]) })
   end
+
+  def test_clustering_respects_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :duration, { shipment: [[0, 1], [2, 3]] })
+    assert_equal [%w[point_1 point_2], %w[point_3 point_4]],
+                 clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
+                 'Clustering should respect linking relations'
+
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :duration, { shipment: [[0, 1], [2, 3]], same_route: [[0, 2]] })
+    assert_equal [[], %w[point_1 point_2 point_3 point_4]],
+                 clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
+                 'Clustering should respect binding relations'
+
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :duration, { shipment: [[0, 1]], same_route: [[0, 2]] })
+    assert_equal [%w[point_1 point_2 point_3], %w[point_4]],
+                 clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
+                 'Clustering should respect relations'
+  end
 end
