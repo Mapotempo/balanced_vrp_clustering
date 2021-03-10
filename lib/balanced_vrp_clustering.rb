@@ -641,6 +641,12 @@ module Ai4r
             skills = @remaining_skills.shift
             item = @data_set.data_items[index]
 
+            # check if linked data items are assigned to different centroids
+            do_forall_linked_items_of(item){ |linked_item|
+              msg = "Centroid #{ind} is initialised with a service which has a linked service that is used to initialise centroid #{insert_at_begining.index(linked_item)}"
+              raise ArgumentError, msg if insert_at_begining.include?(linked_item)
+            }
+
             raise ArgumentError, "Centroid #{ind} is initialised with an incompatible service -- #{index}" unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
             skills[:matrix_index] = item[4][:matrix_index]

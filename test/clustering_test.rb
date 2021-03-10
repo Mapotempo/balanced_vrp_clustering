@@ -273,4 +273,14 @@ class ClusteringTest < Tests
                  clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
                  'Clustering should respect relations'
   end
+
+  def test_centroid_indices_respect_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.centroid_indices = [0, 1]
+    error = assert_raises ArgumentError do
+      clusterer.build(data_set, :duration, { shipment: [[0, 1]] })
+    end
+    expected_msg = 'Centroid 1 is initialised with a service which has a linked service that is used to initialise centroid 0'
+    assert_equal expected_msg, error.message, 'Error message is changed'
+  end
 end
