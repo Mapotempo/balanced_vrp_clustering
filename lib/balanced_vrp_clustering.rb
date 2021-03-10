@@ -171,7 +171,6 @@ module Ai4r
         }
 
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items)
-        @remaining_skills = @vehicles.dup
 
         ### algo start ###
         @iteration = 0
@@ -561,7 +560,7 @@ module Ai4r
       end
 
       def calc_initial_centroids
-        @centroids, @old_centroids_lat_lon = [], nil
+        @centroids, @old_centroids_lat_lon, @remaining_skills = [], nil, @vehicles.dup
         if @centroid_indices.empty?
           populate_centroids('random')
         else
@@ -625,7 +624,7 @@ module Ai4r
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot][@centroids.length]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
-            available_items.delete(item)
+            do_forall_linked_items_of(item){ |linked_item| available_items.delete(linked_item) }
 
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
           end

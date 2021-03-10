@@ -283,4 +283,17 @@ class ClusteringTest < Tests
     expected_msg = 'Centroid 1 is initialised with a service which has a linked service that is used to initialise centroid 0'
     assert_equal expected_msg, error.message, 'Error message is changed'
   end
+
+  def test_centroid_initialisation_respects_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.stub(:calc_initial_centroids, lambda{
+      10.times{
+        clusterer.send(:__minitest_stub__calc_initial_centroids)
+        assert_match(/point_[1-3]point_4/, clusterer.centroids.map{ |i| i[2] }.sort!.join)
+      }
+      return
+    }) do
+      clusterer.build(data_set, :duration, { same_route: [[0, 1, 2]] })
+    end
+  end
 end
