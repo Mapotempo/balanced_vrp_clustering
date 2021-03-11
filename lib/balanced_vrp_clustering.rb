@@ -551,7 +551,7 @@ module Ai4r
           }
         }
 
-        manage_empty_clusters if has_empty_cluster?
+        manage_empty_clusters
       end
 
       def assign_item(data_item, cluster_index)
@@ -663,6 +663,8 @@ module Ai4r
       end
 
       def manage_empty_clusters
+        return unless has_empty_cluster?
+
         @clusters.each_with_index{ |empty_cluster, ind|
           next unless empty_cluster.data_items.empty?
 
@@ -671,21 +673,29 @@ module Ai4r
           distances = @clusters.collect{ |cluster|
             next unless cluster.data_items.size > 1
 
+            min_distance = Float::INFINITY
+
             closest_item = cluster.data_items.select{ |d_i|
               @compatibility_function.call(d_i, empty_centroid)
             }.min_by{ |d_i|
-              @distance_function.call(d_i, empty_centroid)
+              total_dist = 0
+
+              do_forall_linked_items_of(d_i){ |linked_item| total_dist += @distance_function.call(linked_item, empty_centroid) }
+
+              min_distance = [total_dist, min_distance].min
+
+              total_dist
             }
             next if closest_item.nil?
 
-            [@distance_function.call(closest_item, empty_centroid), closest_item, cluster]
+            [min_distance, closest_item, cluster]
           }
 
           closest = distances.min_by{ |d| d.nil? ? Float::INFINITY : d[0] }
 
           next if closest.nil?
 
-          empty_cluster.data_items << closest[2].data_items.delete(closest[1])
+          do_forall_linked_items_of(closest[1]){ |linked_item| empty_cluster.data_items << closest[2].data_items.delete(linked_item) }
         }
       end
 
