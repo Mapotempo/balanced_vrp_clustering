@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    balanced_vrp_clustering (0.1.7)
+    balanced_vrp_clustering (0.2.0)
       awesome_print
       color-generator
       geojson2image
@@ -18,12 +18,12 @@ GEM
     ansi (1.5.0)
     anyway_config (1.4.4)
     ast (2.4.0)
-    awesome_print (1.8.0)
+    awesome_print (1.9.2)
     backport (0.3.0)
     benchmark-ips (2.7.2)
     builder (3.2.4)
     byebug (11.0.1)
-    chunky_png (1.3.12)
+    chunky_png (1.4.0)
     color-generator (0.0.4)
     concurrent-ruby (1.1.6)
     docile (1.3.2)
@@ -58,7 +58,7 @@ GEM
     nio4r (2.5.2)
     nokogiri (1.10.9)
       mini_portile2 (~> 2.4.0)
-    oj (3.10.8)
+    oj (3.11.2)
     parallel (1.19.1)
     parser (2.7.0.4)
       ast (~> 2.4.0)
@@ -153,3 +153,6 @@ DEPENDENCIES
 
 RUBY VERSION
    ruby 2.3.3p222
+
+BUNDLED WITH
+   2.1.4
