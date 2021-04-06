@@ -54,10 +54,13 @@ data_items = items.collect{ |i|
     "matrix_index": only if any matrix was provided
   }
 }
-cut_symbol = :duration # or any other unit (:unit_1, :unit_2) to be used for balancig clusters
+cut_symbol = :duration # or any other unit (:unit_1, :unit_2) to be used for balancing clusters
+related_item_indices = { shipment: [[0, 1] [2, 3]], same_route: [[4, 5]]} # Available relations are as follows
+                                                                          # LINKING_RELATIONS = %i[order same_route sequence shipment]
+                                                                          # BINDING_RELATIONS = %i[order same_route sequence]
 ratio = 1 # by default, used to over/underestimate vehicles limits
 c.logger = Logger.new(STDOUT) # for debug output
-c.build(DataSet.new(data_items: data_items), cut_symbol, ratio, options)```
+c.build(DataSet.new(data_items: data_items), cut_symbol, related_item_indices, ratio, options)```
 
 cut_symbol is the referent unit to use when balancing clusters. This unit should exist in both vehicles and data_items structures.
 ```

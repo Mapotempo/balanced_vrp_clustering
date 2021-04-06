@@ -30,9 +30,14 @@ require 'helpers/hull.rb'
 require 'color-generator'
 require 'geojson2image'
 
+INCOMPATIBILITY_DISTANCE_PENALTY = 2**32
+
 module Ai4r
   module Clusterers
     class BalancedVRPClustering < KMeans
+      LINKING_RELATIONS = %i[order same_route sequence shipment].freeze
+      BINDING_RELATIONS = %i[order same_route sequence].freeze
+
       include OverloadableFunctions
 
       attr_reader :iteration
@@ -57,7 +62,7 @@ module Ai4r
         @on_empty = 'closest' # the other options are not available
       end
 
-      def build(data_set, cut_symbol, cut_ratio = 1.0, options = {})
+      def build(data_set, cut_symbol, related_item_indices = {}, cut_ratio = 1.0, options = {})
         # Build a new clusterer, using data items found in data_set.
         # Items will be clustered in "number_of_clusters" different
         # clusters. Each item is defined by :
@@ -69,7 +74,7 @@ module Ai4r
 
         # First of all, set and display the seed
         options[:seed] ||= Random.new_seed
-        @logger&.debug "Clustering with seed=#{options[:seed]}"
+        @logger&.info "Clustering with seed=#{options[:seed]}"
         srand options[:seed]
 
         # DEPRECATED variables (to be removed before public release)
@@ -98,6 +103,8 @@ module Ai4r
           # TODO: remove this condition and handle the infinity capacities properly.
           raise ArgumentError, 'All vehicles should have a limit for the unit corresponding to the cut symbol'
         end
+
+        connect_linked_items(data_set.data_items, related_item_indices)
 
         ### values ###
         @data_set = data_set
@@ -164,7 +171,6 @@ module Ai4r
         }
 
         @strict_limitations, @cut_limit = compute_limits(cut_symbol, cut_ratio, @vehicles, @data_set.data_items)
-        @remaining_skills = @vehicles.dup
 
         ### algo start ###
         @iteration = 0
@@ -220,6 +226,57 @@ module Ai4r
         output_cluster_geojson
 
         self
+      end
+
+      def connect_linked_items(data_items, related_item_indices)
+        (LINKING_RELATIONS | BINDING_RELATIONS).each{ |relation|
+          related_item_indices[relation]&.each{ |linked_indices|
+            raise ArgumentError, 'Each relation group of related_item_indices should contain only unique indices' unless linked_indices.uniq.size == linked_indices.size
+          }
+        }
+
+        (LINKING_RELATIONS - BINDING_RELATIONS).each{ |relation|
+          related_item_indices[relation]&.each{ |linked_indices|
+            raise ArgumentError, 'A service should not appear in multiple non-binding linking relations' if linked_indices.any?{ |ind| data_items[ind][4].key?(:linked_item) }
+
+            linked_indices << linked_indices.first # create a loop
+            (linked_indices.size - 1).times{ |i|
+              item = data_items[linked_indices[i]]
+              next_item = data_items[linked_indices[i + 1]]
+              item[4][:linked_item] = next_item
+            }
+          }
+        }
+
+        BINDING_RELATIONS.each{ |relation|
+          related_item_indices[relation]&.each{ |linked_indices|
+            linked_indices << linked_indices.first # create a loop
+            (linked_indices.size - 1).times{ |i|
+              item = data_items[linked_indices[i]]
+              next_item = data_items[linked_indices[i + 1]]
+              if !item[4].key?(:linked_item) && !next_item[4].key?(:linked_item)
+                item[4][:linked_item] = next_item
+              elsif item[4].key?(:linked_item) && next_item[4].key?(:linked_item)
+                # either there are two loops to join together or these items are already connected via loop
+                first_loop_end = item
+                item = item[4][:linked_item] while [first_loop_end, next_item].exclude? item[4][:linked_item]
+                next if item[4][:linked_item] == next_item # connected via loop, nothing to do
+
+                second_loop_end = next_item
+                next_item = next_item[4][:linked_item] while next_item[4][:linked_item] != second_loop_end
+
+                item[4][:linked_item] = second_loop_end
+                next_item[4][:linked_item] = first_loop_end
+              else
+                next_item, item = item, next_item if item[4].key?(:linked_item)
+                item[4][:linked_item] = next_item
+                loop_end = next_item
+                next_item = next_item[4][:linked_item] while next_item[4][:linked_item] != loop_end
+                next_item[4][:linked_item] = item unless next_item == item
+              end
+            }
+          }
+        }
       end
 
       def move_limit_violating_dataitems
@@ -429,7 +486,7 @@ module Ai4r
         distances = @centroids.collect.with_index{ |centroid, cluster_index|
           dist = distance(data_item, centroid, cluster_index)
 
-          dist += 2**32 unless @compatibility_function.call(data_item, centroid)
+          dist += INCOMPATIBILITY_DISTANCE_PENALTY unless @compatibility_function.call(data_item, centroid)
 
           dist
         }
@@ -437,7 +494,7 @@ module Ai4r
         closest_cluster_index = get_min_index(distances)
 
         if capactity_violation?(data_item, closest_cluster_index)
-          mininimum_without_limit_violation = 2**32 # only consider compatible ones
+          mininimum_without_limit_violation = INCOMPATIBILITY_DISTANCE_PENALTY # only consider compatible ones
           closest_cluster_wo_violation_index = nil
           @number_of_clusters.times{ |k|
             next unless distances[k] < mininimum_without_limit_violation &&
@@ -466,7 +523,11 @@ module Ai4r
       protected
 
       def distance(data_item, centroid, cluster_index)
-        @distance_function.call(data_item, centroid) * @balance_coeff[cluster_index]
+        total_dist = 0
+
+        do_forall_linked_items_of(data_item){ |linked_item| total_dist += @distance_function.call(linked_item, centroid) }
+
+        total_dist * @balance_coeff[cluster_index]
       end
 
       def calculate_membership_clusters
@@ -476,19 +537,30 @@ module Ai4r
         @clusters = Array.new(@number_of_clusters) do
           Ai4r::Data::DataSet.new data_labels: @data_set.data_labels
         end
-        @cluster_indices = Array.new(@number_of_clusters){ [] }
+
+        @already_assigned = Hash.new{ |h, k| h[k] = false }
 
         @data_set.data_items.each{ |data_item|
+          next if @already_assigned[data_item] # another item with a relation handled this item
+
           cluster_index = evaluate(data_item)
-          @clusters[cluster_index] << data_item
-          update_metrics(data_item, cluster_index)
+
+          do_forall_linked_items_of(data_item){ |linked_item|
+            assign_item(linked_item, cluster_index)
+            update_metrics(linked_item, cluster_index)
+          }
         }
 
-        manage_empty_clusters if has_empty_cluster?
+        manage_empty_clusters
+      end
+
+      def assign_item(data_item, cluster_index)
+        @already_assigned[data_item] = true
+        @clusters[cluster_index] << data_item
       end
 
       def calc_initial_centroids
-        @centroids, @old_centroids_lat_lon = [], nil
+        @centroids, @old_centroids_lat_lon, @remaining_skills = [], nil, @vehicles.dup
         if @centroid_indices.empty?
           populate_centroids('random')
         else
@@ -552,7 +624,7 @@ module Ai4r
             skills[:duration_from_and_to_depot] = item[4][:duration_from_and_to_depot][@centroids.length]
             @centroids << [item[0], item[1], item[2], Hash.new(0), skills]
 
-            available_items.delete(item)
+            do_forall_linked_items_of(item){ |linked_item| available_items.delete(linked_item) }
 
             @data_set.data_items.insert(0, @data_set.data_items.delete(item))
           end
@@ -567,6 +639,12 @@ module Ai4r
 
             skills = @remaining_skills.shift
             item = @data_set.data_items[index]
+
+            # check if linked data items are assigned to different centroids
+            do_forall_linked_items_of(item){ |linked_item|
+              msg = "Centroid #{ind} is initialised with a service which has a linked service that is used to initialise centroid #{insert_at_begining.index(linked_item)}"
+              raise ArgumentError, msg if insert_at_begining.include?(linked_item)
+            }
 
             raise ArgumentError, "Centroid #{ind} is initialised with an incompatible service -- #{index}" unless @compatibility_function.call(item, [nil, nil, nil, nil, skills])
 
@@ -585,6 +663,8 @@ module Ai4r
       end
 
       def manage_empty_clusters
+        return unless has_empty_cluster?
+
         @clusters.each_with_index{ |empty_cluster, ind|
           next unless empty_cluster.data_items.empty?
 
@@ -593,38 +673,30 @@ module Ai4r
           distances = @clusters.collect{ |cluster|
             next unless cluster.data_items.size > 1
 
+            min_distance = Float::INFINITY
+
             closest_item = cluster.data_items.select{ |d_i|
               @compatibility_function.call(d_i, empty_centroid)
             }.min_by{ |d_i|
-              @distance_function.call(d_i, empty_centroid)
+              total_dist = 0
+
+              do_forall_linked_items_of(d_i){ |linked_item| total_dist += @distance_function.call(linked_item, empty_centroid) }
+
+              min_distance = [total_dist, min_distance].min
+
+              total_dist
             }
             next if closest_item.nil?
 
-            [@distance_function.call(closest_item, empty_centroid), closest_item, cluster]
+            [min_distance, closest_item, cluster]
           }
 
           closest = distances.min_by{ |d| d.nil? ? Float::INFINITY : d[0] }
 
           next if closest.nil?
 
-          empty_cluster.data_items << closest[2].data_items.delete(closest[1])
+          do_forall_linked_items_of(closest[1]){ |linked_item| empty_cluster.data_items << closest[2].data_items.delete(linked_item) }
         }
-      end
-
-      def eliminate_empty_clusters
-        old_clusters, old_centroids, old_cluster_indices = @clusters, @centroids, @cluster_indices
-        @clusters, @centroids, @cluster_indices = [], [], []
-        @remaining_skills = []
-        @number_of_clusters.times do |i|
-          if old_clusters[i].data_items.empty?
-            @remaining_skills << old_centroids[i][4]
-          else
-            @clusters << old_clusters[i]
-            @cluster_indices << old_cluster_indices[i]
-            @centroids << old_centroids[i]
-          end
-        end
-        @number_of_clusters = @centroids.length
       end
 
       def stop_criteria_met
@@ -661,6 +733,14 @@ module Ai4r
               local_max_speed
             ].min
         }
+      end
+
+      def do_forall_linked_items_of(item)
+        linked_item = nil
+        until linked_item == item
+          linked_item = (linked_item && linked_item[4][:linked_item]) || item[4][:linked_item] || item
+          yield(linked_item)
+        end
       end
 
       def mark_the_items_which_needs_to_stay_at_the_top

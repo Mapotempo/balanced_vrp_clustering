@@ -101,14 +101,14 @@ class ClusteringTest < Tests
     # the skills of the service does not exist in any of the vehicles
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/infeasible_skills.bindump')
 
-    assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
+    assert clusterer.build(data_set, options[:cut_symbol], {}, ratio, options)
   end
 
   def test_division_by_nan
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/division_by_nan.bindump')
     # options[:seed] = 182581703914854297101438278871236808945
 
-    assert clusterer.build(data_set, options[:cut_symbol], ratio, options)
+    assert clusterer.build(data_set, options[:cut_symbol], {}, ratio, options)
   end
 
   def test_cluster_balance
@@ -131,7 +131,7 @@ class ClusteringTest < Tests
       while data_set.data_items.size > 100
         number_of_items_expected = data_set.data_items.size
 
-        clusterer.build(data_set, options[:cut_symbol], ratio, options)
+        clusterer.build(data_set, options[:cut_symbol], {}, ratio, options)
 
         repartition = clusterer.clusters.collect{ |c| c.data_items.size }
         puts "#{number_of_items_expected} items divided in into #{repartition}"
@@ -186,7 +186,7 @@ class ClusteringTest < Tests
     # more vehicles than data_items..
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/length_centroid.bindump')
 
-    clusterer.build(data_set, options[:cut_symbol], ratio, options)
+    clusterer.build(data_set, options[:cut_symbol], {}, ratio, options)
 
     assert_equal 2, clusterer.clusters.count{ |c| !c.data_items.empty? }, 'There are only 2 data_items, should have at most 2 non-empty clusters.'
   end
@@ -198,7 +198,7 @@ class ClusteringTest < Tests
     # TODO: we should handle these extreme cases better
     clusterer, data_set, options, ratio = Instance.load_clusterer('test/fixtures/avoid_capacities_overlap.bindump')
 
-    clusterer.build(data_set, options[:cut_symbol], ratio, options)
+    clusterer.build(data_set, options[:cut_symbol], {}, ratio, options)
 
     assert_equal 5, clusterer.clusters.count{ |c| !c.data_items.empty? }, 'There should be 5 non-empty clusters'
 
@@ -224,6 +224,76 @@ class ClusteringTest < Tests
       clusterer.geojson_dump_folder = tmpdir # try with output
       clusterer.geojson_dump_freq = 1
       clusterer.build(data_set, :visits)
+    end
+  end
+
+  def test_a_service_cannot_appear_in_two_nonbinding_linking_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+
+    assert_raises ArgumentError do
+      clusterer.connect_linked_items(data_set.data_items, { shipment: [[0, 1], [0, 2]] })
+    end
+  end
+
+  def test_connect_linked_items_to_eachother
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+
+    data_items = Marshal.load(Marshal.dump(data_set.data_items))
+    # two separate 2-loops
+    clusterer.connect_linked_items(data_items, { shipment: [[0, 1], [2, 3]] })
+    assert_equal([1, 0, 3, 2], data_items.collect{ |item| data_items.index(item[4][:linked_item]) })
+
+    data_items = Marshal.load(Marshal.dump(data_set.data_items))
+    # two merged 2-loops (one 4-loop)
+    clusterer.connect_linked_items(data_items, { shipment: [[0, 1], [2, 3]], same_route: [[0, 2]] })
+    assert_equal([1, 2, 3, 0], data_items.collect{ |item| data_items.index(item[4][:linked_item]) })
+
+    data_items = Marshal.load(Marshal.dump(data_set.data_items))
+    # one 3-loop
+    clusterer.connect_linked_items(data_items, { same_route: [[0, 1, 2]] })
+    assert_equal([1, 2, 0, nil], data_items.collect{ |item| data_items.index(item[4][:linked_item]) })
+  end
+
+  def test_clustering_respects_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :duration, { shipment: [[0, 1], [2, 3]] })
+    assert_equal [%w[point_1 point_2], %w[point_3 point_4]],
+                 clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
+                 'Clustering should respect linking relations'
+
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :duration, { shipment: [[0, 1], [2, 3]], same_route: [[0, 2]] })
+    assert_equal [[], %w[point_1 point_2 point_3 point_4]],
+                 clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
+                 'Clustering should respect binding relations'
+
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.build(data_set, :duration, { shipment: [[0, 1]], same_route: [[0, 2]] })
+    assert_equal [%w[point_1 point_2 point_3], %w[point_4]],
+                 clusterer.clusters.collect{ |c| c.data_items.collect{ |i| i[2] }.sort! }.sort!,
+                 'Clustering should respect relations'
+  end
+
+  def test_centroid_indices_respect_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.centroid_indices = [0, 1]
+    error = assert_raises ArgumentError do
+      clusterer.build(data_set, :duration, { shipment: [[0, 1]] })
+    end
+    expected_msg = 'Centroid 1 is initialised with a service which has a linked service that is used to initialise centroid 0'
+    assert_equal expected_msg, error.message, 'Error message is changed'
+  end
+
+  def test_centroid_initialisation_respects_relations
+    clusterer, data_set = Instance.two_clusters_4_items_with_matrix
+    clusterer.stub(:calc_initial_centroids, lambda{
+      10.times{
+        clusterer.send(:__minitest_stub__calc_initial_centroids)
+        assert_match(/point_[1-3]point_4/, clusterer.centroids.map{ |i| i[2] }.sort!.join)
+      }
+      return
+    }) do
+      clusterer.build(data_set, :duration, { same_route: [[0, 1, 2]] })
     end
   end
 end
