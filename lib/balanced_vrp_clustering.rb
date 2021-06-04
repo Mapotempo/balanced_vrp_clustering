@@ -945,8 +945,13 @@ module Ai4r
         # (2) at the moment of actual affectation, we need to check again and make a correction of the info kept inside the cluster/centroid if needed
         # (3) at the end of iteration update the vuisit count
         # (4) modify update_cut_limit_wrt_depot_distance so that we always have an up-to-date distance into inside centroid
-        item[3].any?{ |unit, value|
-          @strict_limitations[cluster_index][unit] && (@centroids[cluster_index][3][unit] + value > @strict_limitations[cluster_index][unit])
+        item[3].any?{ |unit, _value|
+          next unless @strict_limitations[cluster_index][unit]
+
+          total_value = 0
+          do_forall_linked_items_of(item){ |linked_item| total_value += linked_item[3][unit] }
+
+          @centroids[cluster_index][3][unit] + total_value > @strict_limitations[cluster_index][unit]
         }
       end
 
