@@ -329,8 +329,8 @@ module Ai4r
         end
         if @limit_violation_count.positive?
           @logger&.debug "Decisions taken due to capacity violation for #{@limit_violation_count} items: #{moved_down} of them moved_down, #{moved_up} of them moved_up, #{@limit_violation_count - moved_down - moved_up} of them untouched"
-          @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
-          @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
+          @logger&.debug "#{@clusters_with_limit_violation.count(&:any?)} clusters have limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 10
+          @logger&.debug "#{@clusters_with_limit_violation.count(&:any?)} clusters have limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 10
         end
       end
 
@@ -1100,7 +1100,7 @@ module Ai4r
               lon_lat: item[0..1].reverse.join(','),
               distance: @distance_function.call(item, @centroids[c_index]),
               distance_balanced: distance(item, @centroids[c_index], c_index),
-            }.merge(item[3]).merge(item[4]),
+            }.merge(item[3]).merge(item[4].reject{ |k| k == :linked_item }),
             geometry: {
               type: 'Point',
               coordinates: [item[1], item[0]]
