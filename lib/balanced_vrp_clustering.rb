@@ -35,8 +35,8 @@ INCOMPATIBILITY_DISTANCE_PENALTY = 2**32
 module Ai4r
   module Clusterers
     class BalancedVRPClustering < KMeans
-      LINKING_RELATIONS = %i[order same_route sequence same_cluster shipment].freeze
-      BINDING_RELATIONS = %i[order same_route sequence same_cluster].freeze
+      LINKING_RELATIONS = %i[order same_route sequence same_vehicle shipment].freeze
+      BINDING_RELATIONS = %i[order same_route sequence same_vehicle].freeze
 
       include OverloadableFunctions
 
