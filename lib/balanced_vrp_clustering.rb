@@ -114,7 +114,10 @@ module Ai4r
         @number_of_clusters = @vehicles.size
 
         ### default values ###
+        @logger ||= nil
+        @geojson_dump_folder ||= nil
         @geojson_dump_freq ||= 2
+        @max_balance_violation = 0
         @max_iterations ||= [0.5 * @data_set.data_items.size, 100].max
 
         @distance_function ||= lambda do |a, b|
