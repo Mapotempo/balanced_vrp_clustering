@@ -77,8 +77,8 @@ module Hull
     end
 
     # check if all the given points are inside the computed polygon
-    dataset.size.times{ |i|
-      inside = point_in_polygon(dataset[i], hull)
+    dataset.size.times{ |ii|
+      inside = point_in_polygon(dataset[ii], hull)
       if !inside
         # since at least one point is out of the computed polygon, try again with a higher number of neighbours
         return concave_hull_(vector, kk + 1)
