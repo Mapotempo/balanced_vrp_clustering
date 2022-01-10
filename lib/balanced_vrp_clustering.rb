@@ -59,6 +59,10 @@ module Ai4r
 
       def initialize
         super
+        @logger ||= nil
+        @distance_matrix ||= nil
+        @unit_symbols ||= nil
+        @geojson_colors ||= nil
         @on_empty = 'closest' # the other options are not available
       end
 
@@ -946,7 +950,7 @@ module Ai4r
         # and then check the following
         # duration_from_to_depot x n_day + current_duration_load + cluster_size + duration_value > limit
         # (2) at the moment of actual affectation, we need to check again and make a correction of the info kept inside the cluster/centroid if needed
-        # (3) at the end of iteration update the vuisit count
+        # (3) at the end of iteration update the visit count
         # (4) modify update_cut_limit_wrt_depot_distance so that we always have an up-to-date distance into inside centroid
         item[3].any?{ |unit, _value|
           next unless @strict_limitations[cluster_index][unit]

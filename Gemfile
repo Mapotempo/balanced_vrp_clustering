@@ -31,6 +31,7 @@ group :test do
   gem 'minitest-bisect' # to identify randomly failing order-depoendent tests
   gem 'minitest-focus'
   gem 'minitest-reporters'
+  gem 'minitest-retry'
   gem 'minitest-stub_any_instance'
   gem 'simplecov', require: false
 end

@@ -17,17 +17,20 @@
 #
 
 ENV['APP_ENV'] ||= 'test'
-
+ORIGINAL_VERBOSITY = $VERBOSE
+$VERBOSE = nil if $VERBOSE && ENV['APP_ENV'] == 'test' # for suppressing the warnings of external libraries
 require './lib/balanced_vrp_clustering'
+$VERBOSE = ORIGINAL_VERBOSITY
 
+require 'byebug'
+require 'find'
 require 'minitest/reporters'
 Minitest::Reporters.use!
 require 'minitest/around/unit'
 require 'minitest/autorun'
-require 'minitest/stub_any_instance'
 require 'minitest/focus'
-require 'byebug'
-require 'find'
+require 'minitest/retry'
+require 'minitest/stub_any_instance'
 
 include Ai4r::Data
 
