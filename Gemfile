@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
-ruby '~> 2.3'
+ruby '~> 2.5'
 
 gemspec
 
@@ -25,7 +25,7 @@ group :development, :test do
   gem 'solargraph'
 
   # For creating dependency graphs
-  gem 'rubrowser'
+  # gem 'rubrowser'
 
   ## Next gems to use the debuger of vscode directly
   ## but due to a bug in rubyide/vscode-ruby it doesn't

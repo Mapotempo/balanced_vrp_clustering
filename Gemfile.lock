@@ -16,7 +16,6 @@ GEM
       tzinfo (~> 1.1)
     ai4r (1.13)
     ansi (1.5.0)
-    anyway_config (1.4.4)
     ast (2.4.0)
     awesome_print (1.9.2)
     backport (0.3.0)
@@ -36,8 +35,6 @@ GEM
     jaro_winkler (1.5.4)
     json (2.3.0)
     kramdown (1.17.0)
-    litecable (0.5.0)
-      anyway_config (~> 1.0)
     mini_portile2 (2.5.1)
     minitest (5.14.0)
     minitest-around (0.5.0)
@@ -55,7 +52,6 @@ GEM
     minitest-server (1.0.6)
       minitest (~> 5.0)
     minitest-stub_any_instance (1.0.2)
-    nio4r (2.5.7)
     nokogiri (1.11.5)
       mini_portile2 (~> 2.5.0)
       racc (~> 1.4)
@@ -64,8 +60,6 @@ GEM
     parser (2.7.0.4)
       ast (~> 2.4.0)
     path_expander (1.1.0)
-    puma (5.3.2)
-      nio4r (~> 2.0)
     racc (1.5.2)
     rack (1.5.5)
     rack-contrib (1.8.0)
@@ -94,11 +88,6 @@ GEM
       rubocop (>= 0.74)
     rubocop-performance (1.5.2)
       rubocop (>= 0.71.0)
-    rubrowser (2.7.1)
-      litecable
-      parser (~> 2.3, >= 2.3.0)
-      puma
-      websocket
     ruby-progressbar (1.10.1)
     simplecov (0.17.1)
       docile (~> 1.1)
@@ -122,7 +111,6 @@ GEM
     tzinfo (1.2.6)
       thread_safe (~> 0.1)
     unicode-display_width (1.6.1)
-    websocket (1.2.8)
     yard (0.9.25)
 
 PLATFORMS
@@ -149,12 +137,11 @@ DEPENDENCIES
   rubocop
   rubocop-minitest
   rubocop-performance
-  rubrowser
   simplecov
   solargraph
 
 RUBY VERSION
-   ruby 2.3.3p222
+   ruby 2.5.5p157
 
 BUNDLED WITH
-   2.1.4
+   2.2.24
