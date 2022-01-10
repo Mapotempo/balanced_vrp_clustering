@@ -32,6 +32,14 @@ require 'minitest/focus'
 require 'minitest/retry'
 require 'minitest/stub_any_instance'
 
+Minitest::Retry.use!(
+  # List of methods that will trigger a retry (when empty, all methods will).
+  # The list respects alphabetical order for easy maintenance
+  methods_to_retry: %w[
+    ClusteringTest#test_avoid_capacities_overlap
+  ]
+)
+
 include Ai4r::Data
 
 class Tests < Minitest::Test
