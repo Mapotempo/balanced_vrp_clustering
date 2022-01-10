@@ -956,7 +956,7 @@ module Ai4r
           next unless @strict_limitations[cluster_index][unit]
 
           total_value = 0
-          do_forall_linked_items_of(item){ |linked_item| total_value += linked_item[3][unit] }
+          do_forall_linked_items_of(item){ |linked_item| total_value += linked_item[3][unit] || 0 }
 
           @centroids[cluster_index][3][unit] + total_value > @strict_limitations[cluster_index][unit]
         }
