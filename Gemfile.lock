@@ -61,17 +61,8 @@ GEM
       ast (~> 2.4.0)
     path_expander (1.1.0)
     racc (1.5.2)
-    rack (1.5.5)
-    rack-contrib (1.8.0)
-      rack (~> 1.4)
-    rack-cors (1.0.3)
-    rack-test (1.1.0)
-      rack (>= 1.0, < 3)
     rainbow (3.0.0)
     rake (10.3.2)
-    rakeup (1.2.0)
-      rack (~> 1.5.0)
-      rake (~> 10.3.0)
     require_all (3.0.0)
     reverse_markdown (1.4.0)
       nokogiri
@@ -128,11 +119,7 @@ DEPENDENCIES
   minitest-focus
   minitest-reporters
   minitest-stub_any_instance
-  rack
-  rack-contrib
-  rack-cors
-  rack-test
-  rakeup
+  rake
   require_all
   rubocop
   rubocop-minitest
