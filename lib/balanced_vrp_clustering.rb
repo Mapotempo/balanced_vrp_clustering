@@ -59,6 +59,10 @@ module Ai4r
 
       def initialize
         super
+        @logger ||= nil
+        @distance_matrix ||= nil
+        @unit_symbols ||= nil
+        @geojson_colors ||= nil
         @on_empty = 'closest' # the other options are not available
       end
 
@@ -114,7 +118,10 @@ module Ai4r
         @number_of_clusters = @vehicles.size
 
         ### default values ###
+        @logger ||= nil
+        @geojson_dump_folder ||= nil
         @geojson_dump_freq ||= 2
+        @max_balance_violation = 0
         @max_iterations ||= [0.5 * @data_set.data_items.size, 100].max
 
         @distance_function ||= lambda do |a, b|
@@ -329,8 +336,8 @@ module Ai4r
         end
         if @limit_violation_count.positive?
           @logger&.debug "Decisions taken due to capacity violation for #{@limit_violation_count} items: #{moved_down} of them moved_down, #{moved_up} of them moved_up, #{@limit_violation_count - moved_down - moved_up} of them untouched"
-          @logger&.debug "Clusters with limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 40
-          @logger&.debug "Clusters with limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 40
+          @logger&.debug "#{@clusters_with_limit_violation.count(&:any?)} clusters have limit violation (order): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? ' _ ' : "|#{i + 1}|" }.join(' ')}" if @number_of_clusters <= 10
+          @logger&.debug "#{@clusters_with_limit_violation.count(&:any?)} clusters have limit violation (index): #{@clusters_with_limit_violation.collect.with_index{ |array, i| array.empty? ? nil : i}.compact.join(', ')}" if @number_of_clusters > 10
         end
       end
 
@@ -943,10 +950,15 @@ module Ai4r
         # and then check the following
         # duration_from_to_depot x n_day + current_duration_load + cluster_size + duration_value > limit
         # (2) at the moment of actual affectation, we need to check again and make a correction of the info kept inside the cluster/centroid if needed
-        # (3) at the end of iteration update the vuisit count
+        # (3) at the end of iteration update the visit count
         # (4) modify update_cut_limit_wrt_depot_distance so that we always have an up-to-date distance into inside centroid
-        item[3].any?{ |unit, value|
-          @strict_limitations[cluster_index][unit] && (@centroids[cluster_index][3][unit] + value > @strict_limitations[cluster_index][unit])
+        item[3].any?{ |unit, _value|
+          next unless @strict_limitations[cluster_index][unit]
+
+          total_value = 0
+          do_forall_linked_items_of(item){ |linked_item| total_value += linked_item[3][unit] || 0 }
+
+          @centroids[cluster_index][3][unit] + total_value > @strict_limitations[cluster_index][unit]
         }
       end
 
@@ -1095,7 +1107,7 @@ module Ai4r
               lon_lat: item[0..1].reverse.join(','),
               distance: @distance_function.call(item, @centroids[c_index]),
               distance_balanced: distance(item, @centroids[c_index], c_index),
-            }.merge(item[3]).merge(item[4]),
+            }.merge(item[3]).merge(item[4].reject{ |k| k == :linked_item }),
             geometry: {
               type: 'Point',
               coordinates: [item[1], item[0]]

@@ -17,18 +17,28 @@
 #
 
 ENV['APP_ENV'] ||= 'test'
-
+ORIGINAL_VERBOSITY = $VERBOSE
+$VERBOSE = nil if $VERBOSE && ENV['APP_ENV'] == 'test' # for suppressing the warnings of external libraries
 require './lib/balanced_vrp_clustering'
+$VERBOSE = ORIGINAL_VERBOSITY
 
+require 'byebug'
+require 'find'
 require 'minitest/reporters'
 Minitest::Reporters.use!
 require 'minitest/around/unit'
 require 'minitest/autorun'
-require 'minitest/stub_any_instance'
 require 'minitest/focus'
-require 'byebug'
-require 'rack/test'
-require 'find'
+require 'minitest/retry'
+require 'minitest/stub_any_instance'
+
+Minitest::Retry.use!(
+  # List of methods that will trigger a retry (when empty, all methods will).
+  # The list respects alphabetical order for easy maintenance
+  methods_to_retry: %w[
+    ClusteringTest#test_avoid_capacities_overlap
+  ]
+)
 
 include Ai4r::Data
 

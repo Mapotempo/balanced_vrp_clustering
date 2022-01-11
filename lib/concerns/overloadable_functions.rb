@@ -47,7 +47,7 @@ module OverloadableFunctions
 
     if cut_symbol
       total_quantity = Hash.new(0)
-
+      @unit_symbols ||= nil
       (@unit_symbols || (cut_symbol && [cut_symbol]))&.each{ |unit|
         total_quantity[unit] = data_items.sum{ |item| item[3][unit].to_f }
       }

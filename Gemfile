@@ -1,14 +1,11 @@
 source 'https://rubygems.org'
-ruby '~> 2.3'
+ruby '~> 2.5'
 
 gemspec
 
 gem 'require_all'
 
-gem 'rack'
-gem 'rack-contrib'
-gem 'rack-cors'
-gem 'rakeup'
+gem 'rake'
 
 gem 'activesupport'
 
@@ -25,14 +22,7 @@ group :development, :test do
   gem 'solargraph'
 
   # For creating dependency graphs
-  gem 'rubrowser'
-
-  ## Next gems to use the debuger of vscode directly
-  ## but due to a bug in rubyide/vscode-ruby it doesn't
-  ## work at the moment with rake::workers
-  # gem 'psych', '<3.0.2' # TODO: Waiting Ruby 2.2
-  # gem 'ruby-debug-ide'
-  # gem 'debase'
+  # gem 'rubrowser'
 end
 
 group :test do
@@ -41,7 +31,7 @@ group :test do
   gem 'minitest-bisect' # to identify randomly failing order-depoendent tests
   gem 'minitest-focus'
   gem 'minitest-reporters'
+  gem 'minitest-retry'
   gem 'minitest-stub_any_instance'
-  gem 'rack-test'
   gem 'simplecov', require: false
 end
