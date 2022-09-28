@@ -23,6 +23,8 @@
 module Hull
   def self.get_hull(vector)
     concave_hull(vector, 5) || convex_hull(vector)
+  rescue SystemStackError
+    convex_hull(vector)
   end
 
   # vector of unique points
